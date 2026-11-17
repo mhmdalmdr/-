@@ -160,7 +160,7 @@ fun PracticeScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isConfiguringAiQuiz) "مولّد الاختبارات الذكي • SudX" else "التدريب التوجيهي • SudX",
+                            text = if (isConfiguringAiQuiz) "مولّد الاختبارات الذكي" else "التدريب التوجيهي • المعلم الذكي",
                             style = MaterialTheme.typography.titleMedium,
                             color = SudXGoldTint,
                             fontWeight = FontWeight.ExtraBold

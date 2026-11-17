@@ -196,7 +196,7 @@ fun StudyScheduleScreen(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "جدول المذاكرة • SudX",
+                            text = "جدول المذاكرة • المعلم الذكي",
                             style = MaterialTheme.typography.titleMedium,
                             color = SudXGoldTint,
                             fontWeight = FontWeight.ExtraBold

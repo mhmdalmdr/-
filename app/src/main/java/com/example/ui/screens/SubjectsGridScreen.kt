@@ -192,7 +192,7 @@ fun SubjectsGridScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "المواد وكتب PDF • SudX",
+                            text = "المواد وكتب PDF • المعلم الذكي",
                             style = MaterialTheme.typography.titleMedium,
                             color = SudXGoldTint,
                             fontWeight = FontWeight.ExtraBold

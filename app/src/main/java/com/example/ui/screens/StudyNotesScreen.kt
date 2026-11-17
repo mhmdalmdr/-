@@ -165,7 +165,7 @@ fun StudyNotesScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "ملاحظاتي التعليمية • SudX",
+                            text = "ملاحظاتي التعليمية • المعلم الذكي",
                             style = MaterialTheme.typography.titleMedium,
                             color = SudXGoldTint,
                             fontWeight = FontWeight.ExtraBold

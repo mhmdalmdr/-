@@ -136,7 +136,7 @@ object PdfTextbookGenerator {
             fun drawFooter(pageNum: Int) {
                 strokePaint.color = goldColor
                 canvas.drawLine(MARGIN_H, PAGE_HEIGHT - 44f, PAGE_WIDTH - MARGIN_H, PAGE_HEIGHT - 44f, strokePaint)
-                val footerText = "منصة SudX للشهادة الثانوية السودانية  |  ${textbook.title}  |  صفحة $pageNum"
+                val footerText = "منصة المعلم الذكي للشهادة الثانوية السودانية  |  ${textbook.title}  |  صفحة $pageNum"
                 val layout = buildStaticLayout(footerText, footerPaint, CONTENT_WIDTH.toInt())
                 canvas.save()
                 canvas.translate(MARGIN_H, PAGE_HEIGHT - 36f)
@@ -190,7 +190,7 @@ object PdfTextbookGenerator {
             )
 
             var y = 56f
-            y = drawBlock("SudX • مكتبة الشهادة الثانوية السودانية (PDF)", subHeadingPaint.apply { color = goldColor }, y, 6f)
+            y = drawBlock("المعلم الذكي • مكتبة الشهادة الثانوية السودانية (PDF)", subHeadingPaint.apply { color = goldColor }, y, 6f)
             subHeadingPaint.color = Color.rgb(154, 114, 20)
             y = drawBlock(textbook.title, titlePaint, y, 8f)
             y = drawBlock(
@@ -298,7 +298,7 @@ object PdfTextbookGenerator {
             append("BT\n")
             append("/F1 16 Tf\n")
             append("50 780 Td\n")
-            append("(SudX Sudan Secondary Certificate PDF Library) Tj\n")
+            append("(Al-Muallim Al-Thaki Sudan Secondary Certificate PDF Library) Tj\n")
             append("0 -24 Td\n")
             append("/F1 12 Tf\n")
             append("(Textbook ID: ${escapePdfAscii(textbook.id)} | Track: ${escapePdfAscii(textbook.track.name)}) Tj\n")
@@ -391,7 +391,7 @@ object PdfTextbookGenerator {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, bookTitle)
-                putExtra(Intent.EXTRA_TEXT, "كتاب $bookTitle بصيغة PDF من منصة SudX للشهادة الثانوية السودانية")
+                putExtra(Intent.EXTRA_TEXT, "كتاب $bookTitle بصيغة PDF من منصة المعلم الذكي للشهادة الثانوية السودانية")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "مشاركة كتاب PDF"))

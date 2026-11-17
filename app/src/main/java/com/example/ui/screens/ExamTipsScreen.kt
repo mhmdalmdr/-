@@ -92,7 +92,7 @@ fun ExamTipsScreen(
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Text(
-                                text = "توجيهات معلمي SudX لضمان التفوق في الشهادة السودانية",
+                                text = "توجيهات المعلم الذكي لضمان التفوق في الشهادة السودانية",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFE2E8F0)
                             )

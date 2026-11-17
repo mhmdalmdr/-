@@ -10,9 +10,11 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.AppThemeMode
 import com.example.data.local.ChatRepository
 import com.example.data.local.PomodoroStatsRepository
+import com.example.data.local.QuizProgressRepository
 import com.example.data.local.SettingsRepository
 import com.example.data.local.StudentSettings
 import com.example.data.local.StudyNoteRepository
+import com.example.model.AiStudyPlanUiState
 import com.example.model.ChatMessage
 import com.example.model.GroundingSource
 import com.example.model.PomodoroPhase
@@ -23,6 +25,7 @@ import com.example.model.QuizQuestion
 import com.example.model.QuizAttemptUiState
 import com.example.model.QuizDifficulty
 import com.example.model.QuizGeneratorUiState
+import com.example.model.QuizResultRecord
 import com.example.model.GuidedHintUiState
 import com.example.model.StudyNote
 import com.example.model.TutorRole
@@ -30,6 +33,7 @@ import com.example.util.AiQuizJsonParser
 import com.example.util.AuthResult
 import com.example.util.GoogleAuthHelper
 import com.example.util.PomodoroFeedbackUtil
+import com.example.util.ProgressAssessmentEngine
 import com.example.util.StudentAccount
 import com.google.firebase.Firebase
 import com.google.firebase.ai.GenerativeModel
@@ -90,6 +94,10 @@ class TutorViewModel(
 
     private val pomodoroStatsRepository: PomodoroStatsRepository by lazy {
         PomodoroStatsRepository(AppDatabase.getInstance(application).pomodoroSessionDao())
+    }
+
+    private val quizProgressRepository: QuizProgressRepository by lazy {
+        QuizProgressRepository(AppDatabase.getInstance(application).quizResultDao())
     }
 
     private val settingsRepository: SettingsRepository by lazy {
@@ -155,6 +163,24 @@ class TutorViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    val quizResults: StateFlow<List<QuizResultRecord>> = quizProgressRepository.results
+        .catch { e ->
+            Log.e(TAG, "Failed to collect quiz progress results from Room DB", e)
+            emit(emptyList())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    private val _aiStudyPlanState = MutableStateFlow<AiStudyPlanUiState>(AiStudyPlanUiState.Idle)
+    val aiStudyPlanState: StateFlow<AiStudyPlanUiState> = _aiStudyPlanState.asStateFlow()
+
+    private var activeQuizSubjectTitle: String = "التاريخ"
+    private var activeQuizTopic: String = "أسباب الثورة المهدية"
+    private var studyPlanJob: Job? = null
 
     private val tutorGenerationConfig = generationConfig {
         temperature = 0.7f
@@ -1131,6 +1157,8 @@ class TutorViewModel(
 
                 _quizQuestions.value = parsed.questions
                 _quizTitle.value = parsed.quizTitle
+                activeQuizSubjectTitle = subject
+                activeQuizTopic = topic
                 resetQuiz()
                 _quizGeneratorState.value = QuizGeneratorUiState.Ready(subject, topic)
                 _isConfiguringAiQuiz.value = false
@@ -1200,6 +1228,7 @@ class TutorViewModel(
             _quizAttemptState.update { state ->
                 state.copy(
                     attemptedWrongIndices = updatedWrong,
+                    totalWrongAttempts = state.totalWrongAttempts + 1,
                     activeGuidanceText = targetedHint,
                     isGuidanceCorrect = false
                 )
@@ -1348,7 +1377,35 @@ class TutorViewModel(
                 )
             }
         } else {
-            _quizAttemptState.update { it.copy(isQuizFinished = true) }
+            val currentAttempt = _quizAttemptState.value
+            val totalQuestions = _quizQuestions.value.size
+            val shouldRecord = !currentAttempt.hasRecordedResult && totalQuestions > 0
+            _quizAttemptState.update {
+                it.copy(
+                    isQuizFinished = true,
+                    hasRecordedResult = true
+                )
+            }
+            if (shouldRecord) {
+                val record = QuizResultRecord(
+                    subjectTitle = activeQuizSubjectTitle,
+                    topic = activeQuizTopic,
+                    quizTitle = _quizTitle.value,
+                    totalQuestions = totalQuestions,
+                    firstTryCorrectCount = currentAttempt.firstTryCorrectCount,
+                    guidedCorrectCount = currentAttempt.guidedCorrectCount,
+                    revealedCount = currentAttempt.revealedCount,
+                    totalWrongAttempts = currentAttempt.totalWrongAttempts,
+                    completedAt = System.currentTimeMillis()
+                )
+                viewModelScope.launch {
+                    try {
+                        quizProgressRepository.recordQuizResult(record)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to save quiz progress result to Room", e)
+                    }
+                }
+            }
         }
     }
 
@@ -1361,12 +1418,124 @@ class TutorViewModel(
         _quizAttemptState.value = QuizAttemptUiState()
     }
 
-    fun loadSubjectQuiz(questions: List<QuizQuestion>, title: String = "مقرر التاريخ: الثورة المهدية") {
+    fun loadSubjectQuiz(
+        questions: List<QuizQuestion>,
+        title: String = "مقرر التاريخ: الثورة المهدية",
+        subjectTitle: String = "",
+        topic: String = ""
+    ) {
         if (questions.isNotEmpty()) {
             _quizQuestions.value = questions
             _quizTitle.value = title
+            activeQuizSubjectTitle = subjectTitle.trim().ifBlank {
+                inferSubjectFromQuizTitle(title)
+            }
+            activeQuizTopic = topic.trim().ifBlank { title }
             _isConfiguringAiQuiz.value = false
             resetQuiz()
+        }
+    }
+
+    private fun inferSubjectFromQuizTitle(title: String): String {
+        return CurriculumData.subjects.firstOrNull { sub ->
+            title.contains(sub.title, ignoreCase = true) ||
+                title.contains(sub.category.titleAr, ignoreCase = true)
+        }?.title ?: title.substringAfter("مقرر ", title).substringBefore(":").trim()
+            .ifBlank { "عام — الشهادة السودانية" }
+    }
+
+    fun generatePersonalizedStudyPlan() {
+        val currentResults = quizResults.value
+        val recommendations = ProgressAssessmentEngine.buildStudyRecommendations(currentResults)
+        if (recommendations.isEmpty()) {
+            _aiStudyPlanState.value = AiStudyPlanUiState.Ready(
+                "أداؤك ممتاز في جميع المواضيع المسجلة (80% فأكثر)! استمر في خوض اختبارات تحدي المتفوقين للحفاظ على جاهزيتك."
+            )
+            return
+        }
+
+        val weakSummary = recommendations.take(5).joinToString("\n") { rec ->
+            "- المادة: ${rec.subjectTitle} | الموضوع: ${rec.topic} | الإتقان: ${rec.masteryPercent}% | السبب: ${rec.weaknessReason}"
+        }
+
+        val prompt = """
+            أنت مستشار أكاديمي خبير لطلاب الشهادة الثانوية السودانية.
+            بناءً على نتائج اختبارات الطالب الفعلية التالية في المواضيع التي أظهر فيها ضعفاً:
+            $weakSummary
+            
+            المطلوب:
+            ضع للطالب خطة مراجعة عملية ومختصرة (100 إلى 180 كلمة) مرتبة حسب الأولوية:
+            1. حدد له المواد والمواضيع التي يبدأ بمراجعتها أولاً ولماذا.
+            2. اقترح لكل موضوع ضعيف خطوة مذاكرة عملية (مثل مراجعة القوانين الأساسية، تلخيص المفاهيم، ثم إعادة الاختبار بالمستوى التأسيسي).
+            3. اختم برسالة تحفيزية قصيرة ومشجعة.
+        """.trimIndent()
+
+        studyPlanJob?.cancel()
+        _aiStudyPlanState.value = AiStudyPlanUiState.Loading
+        studyPlanJob = viewModelScope.launch {
+            val builder = StringBuilder()
+            try {
+                withTimeout(60_000L) {
+                    val primary = getModelForRole(TutorRole.GENERAL, withSearchGrounding = false)
+                    try {
+                        primary.generateContentStream(prompt).collect { chunk ->
+                            val text = chunk.text.orEmpty()
+                            if (text.isNotEmpty()) {
+                                builder.append(text)
+                                _aiStudyPlanState.value = AiStudyPlanUiState.Streaming(builder.toString())
+                            }
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Primary study plan stream failed, trying fallback", e)
+                    }
+
+                    if (builder.isBlank()) {
+                        val fallback = getFallbackModel(TutorRole.GENERAL, useSearchGrounding = false, fast = true)
+                        val resp = fallback.generateContent(prompt).text.orEmpty()
+                        if (resp.isNotBlank()) builder.append(resp)
+                    }
+                }
+
+                val finalPlan = builder.toString().trim()
+                if (finalPlan.isNotBlank()) {
+                    _aiStudyPlanState.value = AiStudyPlanUiState.Ready(finalPlan)
+                } else {
+                    _aiStudyPlanState.value = AiStudyPlanUiState.Error("تعذر توليد خطة المراجعة حالياً. حاول مرة أخرى.")
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Personalized study plan timed out", e)
+                _aiStudyPlanState.value = AiStudyPlanUiState.Error("استغرق إعداد خطة المراجعة وقتاً طويلاً. يرجى المحاولة مجدداً.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to generate personalized study plan", e)
+                _aiStudyPlanState.value = AiStudyPlanUiState.Error(
+                    e.localizedMessage ?: "تعذر إنشاء خطة المراجعة المخصصة حالياً."
+                )
+            }
+        }
+    }
+
+    fun deleteQuizResult(id: Long) {
+        viewModelScope.launch {
+            try {
+                quizProgressRepository.deleteResult(id)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete quiz result from Room", e)
+            }
+        }
+    }
+
+    fun clearQuizProgressHistory() {
+        _aiStudyPlanState.value = AiStudyPlanUiState.Idle
+        viewModelScope.launch {
+            try {
+                quizProgressRepository.clearAll()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clear quiz progress history", e)
+            }
         }
     }
 

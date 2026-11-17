@@ -168,7 +168,7 @@ fun SettingsScreen(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "الإعدادات وحساب الطالب • SudX",
+                        text = "الإعدادات وحساب الطالب • المعلم الذكي",
                         style = MaterialTheme.typography.titleMedium,
                         color = SudXGoldTint,
                         fontWeight = FontWeight.ExtraBold
@@ -540,7 +540,7 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "منصة SudX للشهادة السودانية",
+                                    text = "منصة المعلم الذكي للشهادة السودانية",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -782,7 +782,7 @@ private fun StudentGoogleAccountCard(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "حساب الطالب في SudX",
+                            text = "حساب الطالب في المعلم الذكي",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = SudXGoldTint

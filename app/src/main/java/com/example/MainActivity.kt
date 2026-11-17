@@ -87,12 +87,14 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.example.data.CurriculumData
 import com.example.data.local.AppThemeMode
+import com.example.model.QuizDifficulty
 import com.example.model.Subject
 import com.example.model.Textbook
 import com.example.ui.screens.ExamsResourcesScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.PdfReaderScreen
 import com.example.ui.screens.PomodoroTimerScreen
+import com.example.ui.screens.ProgressAssessmentScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.StudyNotesScreen
 import com.example.ui.screens.StudyScheduleScreen
@@ -100,6 +102,7 @@ import com.example.ui.screens.StudyStatsScreen
 import com.example.ui.screens.SubjectDetailScreen
 import com.example.ui.screens.SubjectsGridScreen
 import com.example.ui.screens.TutorChatScreen
+import com.example.util.ProgressAssessmentEngine
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.SudXChampagneGold
 import com.example.ui.theme.SudXGoldTint
@@ -175,12 +178,14 @@ fun SudanCertApp(
     var isViewingSettings by remember { mutableStateOf(false) }
     var isViewingPomodoro by remember { mutableStateOf(false) }
     var isViewingStats by remember { mutableStateOf(false) }
+    var isViewingProgress by remember { mutableStateOf(false) }
     var selectedPdfTextbook by remember { mutableStateOf<Textbook?>(null) }
     val studyNotes by viewModel.studyNotes.collectAsStateWithLifecycle()
     val currentStudent by viewModel.currentStudent.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val pomodoroState by viewModel.pomodoroState.collectAsStateWithLifecycle()
     val pomodoroSessions by viewModel.pomodoroSessions.collectAsStateWithLifecycle()
+    val quizResults by viewModel.quizResults.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val fabGlowTransition = rememberInfiniteTransition(label = "fab_glow")
@@ -198,7 +203,7 @@ fun SudanCertApp(
         modifier = Modifier.fillMaxSize(),
         floatingActionButton = {
             // Prominent Floating Action Button (FAB) named 'المعلم الذكي' with SudX Obsidian & Champagne Gold glow
-            if (currentTab != NavigationTab.SMART_ASSISTANT && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro && !isViewingStats) {
+            if (currentTab != NavigationTab.SMART_ASSISTANT && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro && !isViewingStats && !isViewingProgress) {
                 val fabShape = RoundedCornerShape(18.dp)
                 ExtendedFloatingActionButton(
                     onClick = {
@@ -210,6 +215,7 @@ fun SudanCertApp(
                         isViewingSettings = false
                         isViewingPomodoro = false
                         isViewingStats = false
+                        isViewingProgress = false
                         currentTab = NavigationTab.SMART_ASSISTANT
                     },
                     containerColor = SudXMidnightNavy,
@@ -296,7 +302,7 @@ fun SudanCertApp(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     NavigationTab.entries.forEach { tab ->
-                        val isSelected = currentTab == tab && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro && !isViewingStats
+                        val isSelected = currentTab == tab && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro && !isViewingStats && !isViewingProgress
                         val itemInteraction = remember { MutableInteractionSource() }
                         val isPressed by itemInteraction.collectIsPressedAsState()
                         val isHovered by itemInteraction.collectIsHoveredAsState()
@@ -374,6 +380,7 @@ fun SudanCertApp(
                                         isViewingSettings = false
                                         isViewingPomodoro = false
                                         isViewingStats = false
+                                        isViewingProgress = false
                                         currentTab = tab
                                     }
                                 )
@@ -470,10 +477,17 @@ fun SudanCertApp(
                 },
                 onStartSubjectQuiz = { questions ->
                     val subjectTitle = selectedSubject?.title ?: "الشهادة السودانية"
+                    val unitTitle = selectedSubject?.units?.firstOrNull { it.sampleQuestions == questions }?.title
+                        ?: "مقرر $subjectTitle"
                     selectedSubject = null
                     isViewingSchedule = false
                     isViewingNotes = false
-                    viewModel.loadSubjectQuiz(questions, "مقرر $subjectTitle")
+                    viewModel.loadSubjectQuiz(
+                        questions = questions,
+                        title = "مقرر $subjectTitle: $unitTitle",
+                        subjectTitle = subjectTitle,
+                        topic = unitTitle
+                    )
                     isViewingPractice = true
                 },
                 onSaveLessonNote = { title, content, subjectTitle, isPinned ->
@@ -527,6 +541,31 @@ fun SudanCertApp(
                 },
                 modifier = screenModifier
             )
+        } else if (isViewingProgress) {
+            ProgressAssessmentScreen(
+                viewModel = viewModel,
+                onBack = { isViewingProgress = false },
+                onOpenSubjectUnit = { subject, unitId ->
+                    isViewingProgress = false
+                    selectedSubject = subject
+                    selectedUnitId = unitId
+                },
+                onOpenTextbook = { book ->
+                    selectedPdfTextbook = book
+                },
+                onStartTargetedAiQuiz = { subjectTitle, topic, difficulty ->
+                    isViewingProgress = false
+                    viewModel.openAiQuizConfigurator(subjectTitle, topic)
+                    viewModel.updateQuizGeneratorDifficulty(difficulty)
+                    isViewingPractice = true
+                },
+                onAskTutorAboutTopic = { prompt ->
+                    isViewingProgress = false
+                    currentTab = NavigationTab.SMART_ASSISTANT
+                    viewModel.sendMessage(prompt)
+                },
+                modifier = screenModifier
+            )
         } else if (isViewingPractice) {
             androidx.activity.compose.BackHandler {
                 isViewingPractice = false
@@ -537,6 +576,10 @@ fun SudanCertApp(
                     isViewingPractice = false
                     currentTab = NavigationTab.SMART_ASSISTANT
                     viewModel.sendMessage(prompt)
+                },
+                onOpenProgressAssessment = {
+                    isViewingPractice = false
+                    isViewingProgress = true
                 },
                 onBack = { isViewingPractice = false },
                 modifier = screenModifier
@@ -614,6 +657,12 @@ fun SudanCertApp(
                             viewModel.openAiQuizConfigurator()
                             isViewingPractice = true
                         },
+                        quizResultsCount = quizResults.size,
+                        quizMasteryPercent = ProgressAssessmentEngine.assessOverallMastery(quizResults),
+                        weakTopicsCount = ProgressAssessmentEngine.buildStudyRecommendations(quizResults).size,
+                        onNavigateToProgressAssessment = {
+                            isViewingProgress = true
+                        },
                         studentAccount = currentStudent,
                         academicStreamTitle = settings.academicStream.titleAr,
                         onNavigateToSettings = {
@@ -650,8 +699,10 @@ fun SudanCertApp(
                         onStartExamSimulation = { exam ->
                             if (exam.sampleQuestions.isNotEmpty()) {
                                 viewModel.loadSubjectQuiz(
-                                    exam.sampleQuestions,
-                                    "نموذج امتحان ${exam.subjectTitle} (${exam.year})"
+                                    questions = exam.sampleQuestions,
+                                    title = "نموذج امتحان ${exam.subjectTitle} (${exam.year})",
+                                    subjectTitle = exam.subjectTitle,
+                                    topic = exam.title
                                 )
                                 isViewingPractice = true
                             }

@@ -25,7 +25,7 @@ class ExampleRobolectricTest {
   fun `read string from context`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val appName = context.getString(R.string.app_name)
-    assertEquals("SudX", appName)
+    assertEquals("المعلم الذكي", appName)
   }
 
   @Test
@@ -416,6 +416,21 @@ class ExampleRobolectricTest {
     assertTrue(vm.isConfiguringAiQuiz.value)
     vm.generateAiQuiz()
     assertTrue(vm.quizGeneratorState.value is com.example.model.QuizGeneratorUiState.Error)
+  }
+
+  @Test
+  fun `past exams are updated with 2026 exams new dates and socratic hints`() {
+    val exams = CurriculumData.pastExams
+    assertTrue(exams.size >= 8)
+    assertTrue(exams.all { it.year.contains("2026") && it.session.contains("2026") })
+    assertTrue(exams.none { it.year.contains("2021") || it.year.contains("2022") })
+    exams.forEach { exam ->
+      assertTrue(exam.sampleQuestions.isNotEmpty())
+      exam.sampleQuestions.forEach { q ->
+        assertTrue(q.socraticHint.isNotBlank())
+        assertEquals(q.options.size, q.optionHints.size)
+      }
+    }
   }
 }
 

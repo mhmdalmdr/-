@@ -261,7 +261,7 @@ fun TutorChatScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.SmartToy,
-                                contentDescription = "المعلم الذكي SudX",
+                                contentDescription = "المعلم الذكي",
                                 tint = SudXMidnightNavy,
                                 modifier = Modifier.size(25.dp)
                             )
@@ -272,7 +272,7 @@ fun TutorChatScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "المعلم الذكي • SudX",
+                                    text = "المعلم الذكي • الشهادة السودانية",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = SudXGoldTint,
                                     fontWeight = FontWeight.ExtraBold
@@ -883,7 +883,7 @@ fun TutorChatScreen(
                                     RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
                                 )
                                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SD")
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "تحدث بسؤالك للمعلم الذكي في SudX...")
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "تحدث بسؤالك للمعلم الذكي...")
                             }
                             try {
                                 voiceInputLauncher.launch(speechIntent)
@@ -1081,7 +1081,7 @@ fun ChatMessageItem(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = message.tutorRoleName ?: "معلم SudX الذكي",
+                                text = message.tutorRoleName ?: "المعلم الذكي",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
@@ -1463,7 +1463,7 @@ fun StreamingTeacherBubble(
                     modifier = Modifier.padding(bottom = 6.dp)
                 ) {
                     Text(
-                        text = "المعلم الذكي • SudX يكتب الآن...",
+                        text = "المعلم الذكي يكتب الآن...",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold

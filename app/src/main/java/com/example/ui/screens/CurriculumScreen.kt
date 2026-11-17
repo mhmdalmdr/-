@@ -84,7 +84,7 @@ fun CurriculumScreen(
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.img_sudx_hero_banner),
-                    contentDescription = "هوية SudX للتعليم الثانوي السوداني",
+                    contentDescription = "هوية المعلم الذكي للتعليم الثانوي السوداني",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -113,7 +113,7 @@ fun CurriculumScreen(
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "SudX • الشهادة الثانوية",
+                                text = "المعلم الذكي • الشهادة الثانوية",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = SudXMidnightNavy,
                                 fontWeight = FontWeight.Bold

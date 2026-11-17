@@ -208,7 +208,7 @@ fun HomeScreen(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "SudX • الشهادة السودانية",
+                                        text = "المعلم الذكي • الشهادة السودانية",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = SudXSoftGold,
                                         fontWeight = FontWeight.ExtraBold
@@ -248,7 +248,7 @@ fun HomeScreen(
                                 ) {
                                     Image(
                                         painter = painterResource(id = R.drawable.ic_sudx_icon_fg),
-                                        contentDescription = "شعار SudX",
+                                        contentDescription = "شعار المعلم الذكي",
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
                                             .size(38.dp)
@@ -261,7 +261,7 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                            text = if (studentAccount != null) "أهلاً بك، ${studentAccount.displayName}" else "مرحباً بك في SudX",
+                            text = if (studentAccount != null) "أهلاً بك، ${studentAccount.displayName}" else "مرحباً بك في المعلم الذكي",
                             style = MaterialTheme.typography.headlineMedium,
                             color = SudXGoldTint,
                             fontWeight = FontWeight.ExtraBold,
@@ -271,7 +271,7 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = "منصة النخبة الذكية لطلاب الشهادة الثانوية السودانية — مراجعة متقنة، كتب رسمية، وامتحانات سابقة بتوجيه تفاعلي.",
+                            text = "منصة النخبة الذكية لطلاب الشهادة الثانوية السودانية — مراجعة متقنة، كتب رسمية، وامتحانات 2026 المحدّثة بتوجيه تفاعلي.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color(0xFFE2E8F0),
                             lineHeight = 23.sp
@@ -427,21 +427,21 @@ fun HomeScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Quiz,
-                                    contentDescription = "امتحانات سابقة",
+                                    contentDescription = "امتحانات 2026 الجديدة",
                                     tint = SudXBronzeGold,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "امتحانات سابقة",
+                                text = "امتحانات 2026 الجديدة",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
-                                text = "أوراق الشهادة مع الحل النموذجي",
+                                text = "نماذج نوفمبر 2026م المحدّثة بتوجيه ذكي",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

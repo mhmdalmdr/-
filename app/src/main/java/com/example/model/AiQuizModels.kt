@@ -47,5 +47,7 @@ data class QuizAttemptUiState(
     val firstTryCorrectCount: Int = 0,
     val guidedCorrectCount: Int = 0,
     val revealedCount: Int = 0,
+    val totalWrongAttempts: Int = 0,
+    val hasRecordedResult: Boolean = false,
     val isQuizFinished: Boolean = false
 )

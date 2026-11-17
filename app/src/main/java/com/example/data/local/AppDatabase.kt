@@ -9,8 +9,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ChatEntity::class, StudyNoteEntity::class, PomodoroSessionEntity::class],
-    version = 5,
+    entities = [ChatEntity::class, StudyNoteEntity::class, PomodoroSessionEntity::class, QuizResultEntity::class],
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -19,6 +19,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
     abstract fun studyNoteDao(): StudyNoteDao
     abstract fun pomodoroSessionDao(): PomodoroSessionDao
+    abstract fun quizResultDao(): QuizResultDao
 
     companion object {
         @Volatile
@@ -58,6 +59,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `quiz_results` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `subjectTitle` TEXT NOT NULL,
+                        `topic` TEXT NOT NULL,
+                        `quizTitle` TEXT NOT NULL,
+                        `totalQuestions` INTEGER NOT NULL,
+                        `firstTryCorrectCount` INTEGER NOT NULL,
+                        `guidedCorrectCount` INTEGER NOT NULL,
+                        `revealedCount` INTEGER NOT NULL,
+                        `totalWrongAttempts` INTEGER NOT NULL,
+                        `completedAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -65,7 +87,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "sudan_cert_tutor_db"
                 )
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

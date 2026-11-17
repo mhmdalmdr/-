@@ -184,7 +184,7 @@ fun StudyStatsScreen(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "إحصائيات المذاكرة • SudX",
+                        text = "إحصائيات المذاكرة • المعلم الذكي",
                         style = MaterialTheme.typography.titleMedium,
                         color = SudXGoldTint,
                         fontWeight = FontWeight.ExtraBold

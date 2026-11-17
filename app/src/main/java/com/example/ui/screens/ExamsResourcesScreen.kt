@@ -86,14 +86,14 @@ fun ExamsResourcesScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
-    val tabTitles = listOf("امتحانات سابقة", "الكتب المدرسية", "نصائح الامتحان")
+    val tabTitles = listOf("امتحانات 2026 الحديثة", "الكتب المدرسية", "نصائح الامتحان")
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // SudX Header
+        // المعلم الذكي Header
         SudXHeaderSurface {
             Column(
                 modifier = Modifier
@@ -101,14 +101,14 @@ fun ExamsResourcesScreen(
                     .padding(horizontal = 18.dp, vertical = 14.dp)
             ) {
                 Text(
-                    text = "بنك الامتحانات والموارد • SudX",
+                    text = "بنك الامتحانات والموارد • المعلم الذكي",
                     style = MaterialTheme.typography.titleMedium,
                     color = SudXGoldTint,
                     fontWeight = FontWeight.ExtraBold
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "الامتحانات السابقة والكتب الرسمية للشهادة الثانوية",
+                    text = "نماذج امتحانات نوفمبر 2026م والكتب الرسمية للشهادة الثانوية",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFFE2E8F0)
                 )
@@ -254,7 +254,7 @@ fun PastExamsList(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "أوراق امتحانات الشهادة الثانوية السودانية الرسمية مع التركيز على الأسئلة المتكررة وطريقة التصحيح.",
+                        text = "نماذج امتحانات الشهادة الثانوية السودانية المحدّثة (تاريخ الدورة: نوفمبر 2026م) مع التوجيه الذكي ومعايير التصحيح.",
                         style = MaterialTheme.typography.bodySmall,
                         color = SudXMidnightNavy,
                         lineHeight = 20.sp

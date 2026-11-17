@@ -121,7 +121,7 @@ fun SubjectDetailScreen(
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
-                        text = "مقرر الشهادة الثانوية • SudX",
+                        text = "مقرر الشهادة الثانوية • المعلم الذكي",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFFE2E8F0)
                     )

@@ -585,7 +585,7 @@ fun GlassmorphicSmartTeacherCard(
                         Spacer(modifier = Modifier.height(2.dp))
 
                         Text(
-                            text = "مساعد SudX الشخصي لشرح المسائل والدروس خطوة بخطوة",
+                            text = "مساعدك الشخصي الذكي لشرح المسائل والدروس خطوة بخطوة",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFFE2E8F0)
                         )

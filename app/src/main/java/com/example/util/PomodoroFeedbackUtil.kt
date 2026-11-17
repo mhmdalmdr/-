@@ -31,11 +31,11 @@ object PomodoroFeedbackUtil {
         if (sendNotification) {
             val (title, body) = when (finishedPhase) {
                 PomodoroPhase.FOCUS -> {
-                    "انتهت جلسة التركيز • SudX" to
+                    "انتهت جلسة التركيز • المعلم الذكي" to
                         "أحسنت يا بطل! أتممت جلسة مذاكرة في «$subjectTitle». خذ استراحة الآن لتجديد نشاطك."
                 }
                 PomodoroPhase.SHORT_BREAK, PomodoroPhase.LONG_BREAK -> {
-                    "انتهت الاستراحة • SudX" to
+                    "انتهت الاستراحة • المعلم الذكي" to
                         "حان وقت العودة إلى «$subjectTitle» بجولة تركيز جديدة!"
                 }
             }
