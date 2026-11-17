@@ -555,4 +555,145 @@ class ExampleRobolectricTest {
     assertEquals(2, parsed[0].actionSteps.size)
     assertEquals(com.example.model.TeacherTipCategory.EXAM_ANXIETY.titleAr, parsed[1].category)
   }
+
+  @Test
+  fun `tutor viewModel supports role switching search toggle and featured tip cycling`() {
+    val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+    val vm = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(app)
+      .create(com.example.viewmodel.TutorViewModel::class.java)
+
+    vm.selectTutorRole(com.example.model.TutorRole.DEEP_REASONING)
+    assertEquals(com.example.model.TutorRole.DEEP_REASONING, vm.selectedTutorRole.value)
+    vm.selectTutorRole(com.example.model.TutorRole.INTERACTIVE_COACH)
+    assertEquals(com.example.model.TutorRole.INTERACTIVE_COACH, vm.selectedTutorRole.value)
+    vm.selectTutorRole(com.example.model.TutorRole.FAST_REVISION)
+    assertEquals(com.example.model.TutorRole.FAST_REVISION, vm.selectedTutorRole.value)
+
+    val initialFeatured = vm.featuredTipIndex.value
+    val totalTips = vm.teacherTips.value.size
+    assertTrue(totalTips >= 8)
+    vm.cycleFeaturedTip()
+    assertEquals((initialFeatured + 1) % totalTips, vm.featuredTipIndex.value)
+  }
+
+  @Test
+  fun `quiz supports full student freedom of choice across configuration navigation feedback modes and early finish`() {
+    val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+    val vm = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(app)
+      .create(com.example.viewmodel.TutorViewModel::class.java)
+
+    // 1. Configurator freedom: any subject, 1..15 count range, custom instructions, feedback mode
+    vm.updateQuizGeneratorSubject("علم الفلك التطبيقي")
+    assertEquals("علم الفلك التطبيقي", vm.quizSelectedSubject.value)
+
+    vm.updateQuizGeneratorCount(1)
+    assertEquals(1, vm.quizQuestionCount.value)
+    vm.updateQuizGeneratorCount(15)
+    assertEquals(15, vm.quizQuestionCount.value)
+    vm.updateQuizGeneratorCount(20)
+    assertEquals(15, vm.quizQuestionCount.value)
+
+    vm.updateQuizGeneratorCustomInstructions("ركّز على المسائل التطبيقية")
+    assertEquals("ركّز على المسائل التطبيقية", vm.quizCustomInstructions.value)
+
+    vm.updateQuizFeedbackMode(com.example.model.QuizFeedbackMode.FREE_INSTANT)
+    assertEquals(com.example.model.QuizFeedbackMode.FREE_INSTANT, vm.quizFeedbackMode.value)
+
+    // 2. Load multi-question quiz & verify free random-access jumping + snapshot preservation
+    val questions = listOf(
+      com.example.model.QuizQuestion(
+        id = "f_q1",
+        question = "السؤال الأول",
+        options = listOf("أ1", "ب1", "ج1", "د1"),
+        correctIndex = 0,
+        explanation = "تفسير 1",
+        teacherGuidance = "توجيه 1",
+        socraticHint = "تلميح 1",
+        optionHints = listOf("صحيح 1", "خطأ 1ب", "خطأ 1ج", "خطأ 1د")
+      ),
+      com.example.model.QuizQuestion(
+        id = "f_q2",
+        question = "السؤال الثاني",
+        options = listOf("أ2", "ب2", "ج2", "د2"),
+        correctIndex = 2,
+        explanation = "تفسير 2",
+        teacherGuidance = "توجيه 2",
+        socraticHint = "تلميح 2",
+        optionHints = listOf("خطأ 2أ", "خطأ 2ب", "صحيح 2", "خطأ 2د")
+      ),
+      com.example.model.QuizQuestion(
+        id = "f_q3",
+        question = "السؤال الثالث",
+        options = listOf("أ3", "ب3", "ج3", "د3"),
+        correctIndex = 1,
+        explanation = "تفسير 3",
+        teacherGuidance = "توجيه 3",
+        socraticHint = "تلميح 3",
+        optionHints = listOf("خطأ 3أ", "صحيح 3", "خطأ 3ج", "خطأ 3د")
+      )
+    )
+
+    vm.loadSubjectQuiz(questions, "اختبار حر")
+    assertEquals(0, vm.currentQuizIndex.value)
+    assertEquals(com.example.model.QuizFeedbackMode.FREE_INSTANT, vm.quizAttemptState.value.feedbackMode)
+
+    // Skip Q1 directly to Q3 via jump
+    vm.jumpToQuizQuestion(2)
+    assertEquals(2, vm.currentQuizIndex.value)
+    assertEquals(false, vm.quizAttemptState.value.isSolvedOrRevealed)
+
+    // Solve Q3 on first try
+    vm.selectQuizAnswer(1)
+    vm.submitQuizAnswer()
+    assertTrue(vm.quizAttemptState.value.isSolvedOrRevealed)
+    assertEquals(1, vm.quizAttemptState.value.firstTryCorrectCount)
+
+    // Jump back to Q2 and switch to FREE_INSTANT wrong attempt -> includes explanation right away
+    vm.previousQuizQuestion()
+    assertEquals(1, vm.currentQuizIndex.value)
+    assertEquals(false, vm.quizAttemptState.value.isSolvedOrRevealed)
+    vm.selectQuizAnswer(0)
+    vm.submitQuizAnswer()
+    assertTrue(vm.quizAttemptState.value.activeGuidanceText.orEmpty().contains("تفسير 2"))
+
+    // Switch feedback mode mid-quiz to GUIDED, jump back to Q1 and reveal answer immediately without guessing wrong
+    vm.changeQuizFeedbackModeDuringQuiz(com.example.model.QuizFeedbackMode.GUIDED)
+    assertEquals(com.example.model.QuizFeedbackMode.GUIDED, vm.quizAttemptState.value.feedbackMode)
+    vm.jumpToQuizQuestion(0)
+    assertEquals(0, vm.currentQuizIndex.value)
+    vm.revealCurrentQuestionAnswer()
+    assertTrue(vm.quizAttemptState.value.wasRevealedWithoutSolving)
+    assertEquals(1, vm.quizAttemptState.value.revealedCount)
+
+    // Revisit Q3 -> still preserved as solved, score not double-counted
+    vm.jumpToQuizQuestion(2)
+    assertTrue(vm.quizAttemptState.value.isSolvedOrRevealed)
+    assertEquals(1, vm.quizAttemptState.value.firstTryCorrectCount)
+    assertEquals(1, vm.quizAttemptState.value.revealedCount)
+
+    // Finish early preserves summary cleanly
+    vm.finishQuizEarly()
+    assertTrue(vm.quizAttemptState.value.isQuizFinished)
+  }
+
+  @Test
+  fun `pdf textbook generator creates multi-page pdf covering all chapters of every textbook`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val physicsBook = CurriculumData.textbooks.first { it.id == "tb_physics_3" }
+    val units = CurriculumData.subjects
+      .filter { it.id == physicsBook.subjectId || it.title == physicsBook.subjectTitle }
+      .flatMap { it.units }
+
+    val pdfFile = com.example.util.PdfTextbookGenerator.generateOrGetPdfFile(context, physicsBook, units)
+    assertTrue(pdfFile.exists())
+    assertTrue(pdfFile.length() > 1024L)
+
+    val pdfContent = pdfFile.readText(Charsets.ISO_8859_1)
+    assertTrue(pdfContent.startsWith("%PDF-"))
+    // Verify multi-page PDF object tree contains more than 1 page (Cover + all book chapters)
+    val countMatch = Regex("/Count\\s+(\\d+)").findAll(pdfContent)
+      .mapNotNull { it.groupValues.getOrNull(1)?.toIntOrNull() }
+      .maxOrNull() ?: 0
+    assertTrue("Expected multi-page PDF >= ${physicsBook.chapters.size + 1} pages, found $countMatch", countMatch >= physicsBook.chapters.size + 1)
+  }
 }

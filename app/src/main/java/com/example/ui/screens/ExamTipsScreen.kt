@@ -94,7 +94,8 @@ fun ExamTipsScreen(
     onCycleFeaturedTip: () -> Unit = {},
     onDismissRefreshState: () -> Unit = {},
     onSaveTipToNotes: ((ExamTip) -> Unit)? = null,
-    onBack: (() -> Unit)? = null
+    onBack: (() -> Unit)? = null,
+    showHeader: Boolean = true
 ) {
     if (onBack != null) {
         BackHandler(onBack = onBack)
@@ -127,9 +128,10 @@ fun ExamTipsScreen(
         contentPadding = PaddingValues(bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // 1. Luxury SudX Header (Standalone or Embedded)
-        item {
-            SudXHeaderSurface {
+        // 1. Luxury SudX Header (Standalone)
+        if (showHeader) {
+            item {
+                SudXHeaderSurface {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -220,6 +222,7 @@ fun ExamTipsScreen(
                     }
                 }
             }
+        }
         }
 
         // 2. Teacher's Motivational Greeting Card

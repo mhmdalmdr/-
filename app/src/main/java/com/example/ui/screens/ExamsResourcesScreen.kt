@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -175,7 +176,8 @@ fun ExamsResourcesScreen(
                 onCycleFeaturedTip = onCycleFeaturedTip,
                 onDismissRefreshState = onDismissTeacherTipsRefreshState,
                 onSaveTipToNotes = onSaveTipToNotes,
-                onAskTeacherForAdvice = onAskTeacherAboutExam
+                onAskTeacherForAdvice = onAskTeacherAboutExam,
+                showHeader = false
             )
         }
     }
@@ -517,6 +519,7 @@ fun TextbooksList(
             PremiumSurfaceCard(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable { onOpenPdfTextbook(book) }
                     .testTag("textbook_card_${book.id}"),
                 cornerRadius = 20.dp,
                 elevation = 5.dp
@@ -570,7 +573,7 @@ fun TextbooksList(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "فهرس الأبواب: " + book.chapters.take(3).joinToString(" | ") + "...",
+                        text = "فهرس الأبواب: " + book.chapters.joinToString(" | "),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -598,7 +601,7 @@ fun TextbooksList(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "قراءة PDF",
+                                text = "فتح جميع الصفحات",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold
                             )

@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,18 +30,23 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.LibraryBooks
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -51,6 +58,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,28 +69,34 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.CurriculumData
 import com.example.model.GuidedHintUiState
+import com.example.model.QuizFeedbackMode
 import com.example.ui.components.AiQuizGeneratorPanel
 import com.example.ui.components.PremiumActionButton
 import com.example.ui.components.PremiumOutlinedActionButton
 import com.example.ui.components.PremiumSurfaceCard
 import com.example.ui.components.SudXHeaderSurface
-import com.example.ui.theme.SudXBronzeGold
 import com.example.ui.theme.SudXChampagneGold
-import com.example.ui.theme.SudXCrimson
 import com.example.ui.theme.SudXEmerald
 import com.example.ui.theme.SudXEmeraldDark
-import com.example.ui.theme.SudXEmeraldSoft
-import com.example.ui.theme.SudXGoldBorder
 import com.example.ui.theme.SudXGoldTint
 import com.example.ui.theme.SudXMidnightNavy
-import com.example.ui.theme.SudXNavySoft
 import com.example.ui.theme.SudXRoyalNavy
 import com.example.ui.theme.SudXSapphireSlate
 import com.example.ui.theme.SudXSoftGold
+import com.example.ui.theme.sudxCrimsonFg
+import com.example.ui.theme.sudxCrimsonSoftBg
+import com.example.ui.theme.sudxEmeraldFg
+import com.example.ui.theme.sudxEmeraldSoftBg
+import com.example.ui.theme.sudxGoldBorder
+import com.example.ui.theme.sudxGoldFg
+import com.example.ui.theme.sudxGoldTintBg
+import com.example.ui.theme.sudxNavyFg
 import com.example.viewmodel.TutorViewModel
 
 @Composable
@@ -103,6 +119,22 @@ fun PracticeScreen(
     val topicInput by viewModel.quizTopicInput.collectAsStateWithLifecycle()
     val selectedDifficulty by viewModel.quizSelectedDifficulty.collectAsStateWithLifecycle()
     val questionCount by viewModel.quizQuestionCount.collectAsStateWithLifecycle()
+    val customInstructions by viewModel.quizCustomInstructions.collectAsStateWithLifecycle()
+    val feedbackMode by viewModel.quizFeedbackMode.collectAsStateWithLifecycle()
+
+    var showQuizLibraryPicker by remember { mutableStateOf(false) }
+
+    val curatedQuizzes = remember {
+        val unitQuizzes = CurriculumData.subjects.flatMap { subject ->
+            subject.units.filter { it.sampleQuestions.isNotEmpty() }.map { unit ->
+                Triple("${subject.title}: ${unit.title}", subject.title, unit.sampleQuestions)
+            }
+        }
+        val examQuizzes = CurriculumData.pastExams.filter { it.sampleQuestions.isNotEmpty() }.map { exam ->
+            Triple("${exam.subjectTitle} (${exam.year})", exam.subjectTitle, exam.sampleQuestions)
+        }
+        unitQuizzes + examQuizzes
+    }
 
     BackHandler {
         if (isConfiguringAiQuiz && questions.isNotEmpty()) {
@@ -160,16 +192,16 @@ fun PracticeScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isConfiguringAiQuiz) "مولّد الاختبارات الذكي" else "التدريب التوجيهي • المعلم الذكي",
+                            text = if (isConfiguringAiQuiz) "مولّد الاختبارات الحر" else "بنك الأسئلة والتدريب الحر",
                             style = MaterialTheme.typography.titleMedium,
                             color = SudXGoldTint,
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
                             text = if (isConfiguringAiQuiz) {
-                                "أنشئ أسئلة اختيار من متعدد مخصصة حسب المادة والموضوع"
+                                "خصص المادة والموضوع وعدد الأسئلة وشروطك بكل حرية"
                             } else {
-                                "تعلّم بالتوجيه السقراطي للوصول إلى الإجابة بنفسك"
+                                "تنقّل بحرية، بدّل أسلوب التوجيه، أو ولّد اختبارك الخاص"
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFFE2E8F0)
@@ -221,7 +253,9 @@ fun PracticeScreen(
 
         if (isConfiguringAiQuiz) {
             Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
                 contentAlignment = Alignment.TopCenter
             ) {
                 AiQuizGeneratorPanel(
@@ -229,11 +263,15 @@ fun PracticeScreen(
                     topicInput = topicInput,
                     selectedDifficulty = selectedDifficulty,
                     questionCount = questionCount,
+                    customInstructions = customInstructions,
+                    selectedFeedbackMode = feedbackMode,
                     generatorState = generatorState,
                     onSelectSubject = viewModel::updateQuizGeneratorSubject,
                     onTopicChange = viewModel::updateQuizGeneratorTopic,
                     onSelectDifficulty = viewModel::updateQuizGeneratorDifficulty,
                     onSelectCount = viewModel::updateQuizGeneratorCount,
+                    onCustomInstructionsChange = viewModel::updateQuizGeneratorCustomInstructions,
+                    onSelectFeedbackMode = viewModel::updateQuizFeedbackMode,
                     onGenerateQuiz = viewModel::generateAiQuiz
                 )
             }
@@ -264,9 +302,159 @@ fun PracticeScreen(
                 contentPadding = PaddingValues(vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Progress Bar & Attempts Counter
+                // Freedom Control Bar: Feedback Mode + Quick Switcher + Finish Early
                 item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            item {
+                                val nextMode = if (attemptState.feedbackMode == QuizFeedbackMode.GUIDED) {
+                                    QuizFeedbackMode.FREE_INSTANT
+                                } else {
+                                    QuizFeedbackMode.GUIDED
+                                }
+                                FilterChip(
+                                    selected = attemptState.feedbackMode == QuizFeedbackMode.FREE_INSTANT,
+                                    onClick = { viewModel.changeQuizFeedbackModeDuringQuiz(nextMode) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.SwapHoriz,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    },
+                                    label = {
+                                        Text(
+                                            text = "النمط: ${attemptState.feedbackMode.titleAr}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = sudxGoldTintBg(),
+                                        selectedLabelColor = MaterialTheme.colorScheme.onSurface,
+                                        containerColor = MaterialTheme.colorScheme.surface,
+                                        labelColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = attemptState.feedbackMode == QuizFeedbackMode.FREE_INSTANT,
+                                        borderColor = MaterialTheme.colorScheme.outlineVariant,
+                                        selectedBorderColor = SudXChampagneGold
+                                    ),
+                                    modifier = Modifier.testTag("quiz_mode_toggle_btn")
+                                )
+                            }
+
+                            item {
+                                FilterChip(
+                                    selected = showQuizLibraryPicker,
+                                    onClick = { showQuizLibraryPicker = !showQuizLibraryPicker },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.LibraryBooks,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    },
+                                    label = {
+                                        Text(
+                                            text = "اختر اختباراً آخر",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SudXRoyalNavy,
+                                        selectedLabelColor = SudXGoldTint,
+                                        containerColor = MaterialTheme.colorScheme.surface,
+                                        labelColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    modifier = Modifier.testTag("switch_quiz_topic_btn")
+                                )
+                            }
+
+                            item {
+                                FilterChip(
+                                    selected = false,
+                                    onClick = { viewModel.finishQuizEarly() },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.DoneAll,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    },
+                                    label = {
+                                        Text(
+                                            text = "إنهاء وعرض النتيجة",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        containerColor = sudxEmeraldSoftBg(),
+                                        labelColor = sudxEmeraldFg()
+                                    ),
+                                    modifier = Modifier.testTag("finish_quiz_early_btn")
+                                )
+                            }
+                        }
+
+                        AnimatedVisibility(visible = showQuizLibraryPicker) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, sudxGoldBorder()),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text(
+                                        text = "اختر من الاختبارات الجاهزة أو اضغط «توليد AI» لإنشاء أي اختبار:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        items(curatedQuizzes) { (title, subject, qs) ->
+                                            val isCurrent = quizTitle == title
+                                            FilterChip(
+                                                selected = isCurrent,
+                                                onClick = {
+                                                    viewModel.loadSubjectQuiz(
+                                                        questions = qs,
+                                                        title = title,
+                                                        subjectTitle = subject,
+                                                        topic = title
+                                                    )
+                                                    showQuizLibraryPicker = false
+                                                },
+                                                label = {
+                                                    Text(
+                                                        text = title,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                },
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = SudXRoyalNavy,
+                                                    selectedLabelColor = SudXGoldTint
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Question Progress Header & Linear Indicator
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -283,12 +471,13 @@ fun PracticeScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.End
+                                textAlign = TextAlign.End,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
                         LinearProgressIndicator(
-                            progress = { (currentIndex + 1).toFloat() / questions.size },
+                            progress = { (currentIndex + 1).toFloat() / questions.size.coerceAtLeast(1) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
@@ -296,10 +485,82 @@ fun PracticeScreen(
                             color = SudXChampagneGold,
                             trackColor = MaterialTheme.colorScheme.outlineVariant
                         )
+
+                        // Free Question Number Navigator Strip
+                        if (questions.size > 1) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                items(questions.size) { idx ->
+                                    val isCurrent = idx == currentIndex
+                                    val snap = attemptState.questionSnapshots[idx]
+                                    val qSolved = if (isCurrent) {
+                                        attemptState.isSolvedOrRevealed && attemptState.isGuidanceCorrect
+                                    } else {
+                                        snap != null && snap.isSolvedOrRevealed && snap.isGuidanceCorrect
+                                    }
+                                    val qRevealed = if (isCurrent) {
+                                        attemptState.wasRevealedWithoutSolving
+                                    } else {
+                                        snap?.wasRevealedWithoutSolving == true
+                                    }
+                                    val qHasWrong = if (isCurrent) {
+                                        attemptState.attemptedWrongIndices.isNotEmpty()
+                                    } else {
+                                        snap?.attemptedWrongIndices?.isNotEmpty() == true
+                                    }
+
+                                    val badgeBg = when {
+                                        isCurrent -> SudXRoyalNavy
+                                        qSolved -> sudxEmeraldSoftBg()
+                                        qRevealed -> sudxGoldTintBg()
+                                        qHasWrong -> sudxCrimsonSoftBg()
+                                        else -> MaterialTheme.colorScheme.surface
+                                    }
+                                    val badgeBorder = when {
+                                        isCurrent -> SudXChampagneGold
+                                        qSolved -> sudxEmeraldFg()
+                                        qRevealed -> sudxGoldFg()
+                                        qHasWrong -> sudxCrimsonFg().copy(alpha = 0.6f)
+                                        else -> MaterialTheme.colorScheme.outlineVariant
+                                    }
+                                    val badgeTextColor = when {
+                                        isCurrent -> SudXGoldTint
+                                        qSolved -> sudxEmeraldFg()
+                                        qRevealed -> sudxGoldFg()
+                                        qHasWrong -> sudxCrimsonFg()
+                                        else -> MaterialTheme.colorScheme.onSurface
+                                    }
+
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = badgeBg,
+                                        border = BorderStroke(if (isCurrent) 1.8.dp else 1.dp, badgeBorder),
+                                        modifier = Modifier
+                                            .minimumInteractiveComponentSize()
+                                            .clickable { viewModel.jumpToQuizQuestion(idx) }
+                                            .testTag("quiz_jump_q_$idx")
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.size(38.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "${idx + 1}",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = badgeTextColor
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
-                // Question Card with Pre-Attempt Guiding Hint Button
+                // Question Card with Pre-Attempt Hint & Immediate Reveal Answer Freedom
                 item {
                     Card(
                         modifier = Modifier
@@ -315,7 +576,7 @@ fun PracticeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     Box(
                                         modifier = Modifier
                                             .size(34.dp)
@@ -342,29 +603,6 @@ fun PracticeScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-
-                                if (!attemptState.isSolvedOrRevealed) {
-                                    TextButton(
-                                        onClick = { viewModel.requestPreAttemptHint() },
-                                        modifier = Modifier
-                                            .minimumInteractiveComponentSize()
-                                            .testTag("quiz_request_hint_btn")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Lightbulb,
-                                            contentDescription = null,
-                                            tint = SudXBronzeGold,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "تلميح",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = SudXBronzeGold,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
@@ -375,11 +613,61 @@ fun PracticeScreen(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 lineHeight = 26.sp
                             )
+
+                            if (!attemptState.isSolvedOrRevealed) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    TextButton(
+                                        onClick = { viewModel.requestPreAttemptHint() },
+                                        modifier = Modifier
+                                            .minimumInteractiveComponentSize()
+                                            .testTag("quiz_request_hint_btn")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Lightbulb,
+                                            contentDescription = null,
+                                            tint = sudxGoldFg(),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "تلميح",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = sudxGoldFg(),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    TextButton(
+                                        onClick = { viewModel.revealCurrentQuestionAnswer() },
+                                        modifier = Modifier
+                                            .minimumInteractiveComponentSize()
+                                            .testTag("quiz_reveal_answer_btn")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Visibility,
+                                            contentDescription = null,
+                                            tint = sudxNavyFg(),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "أرني الحل فوراً",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = sudxNavyFg(),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
-                // MCQ Options (Wrong attempts marked without revealing answer)
+                // MCQ Options
                 items(currentQuestion.options.size) { optIdx ->
                     val optionText = currentQuestion.options[optIdx]
                     val isSelected = selectedIndex == optIdx
@@ -388,22 +676,21 @@ fun PracticeScreen(
                     val isSolvedOrRevealed = attemptState.isSolvedOrRevealed
 
                     val borderColor = when {
-                        isSolvedOrRevealed && isCorrectOption -> SudXEmeraldDark
-                        wasTriedWrong -> SudXCrimson.copy(alpha = 0.55f)
+                        isSolvedOrRevealed && isCorrectOption -> sudxEmeraldFg()
+                        wasTriedWrong -> sudxCrimsonFg().copy(alpha = 0.65f)
                         !isSolvedOrRevealed && isSelected -> SudXChampagneGold
                         else -> MaterialTheme.colorScheme.outlineVariant
                     }
 
                     val containerColor = when {
-                        isSolvedOrRevealed && isCorrectOption -> SudXEmeraldSoft
-                        wasTriedWrong -> Color(0xFFFEF2F2)
-                        !isSolvedOrRevealed && isSelected -> SudXChampagneGold.copy(alpha = 0.14f)
+                        isSolvedOrRevealed && isCorrectOption -> sudxEmeraldSoftBg()
+                        wasTriedWrong -> sudxCrimsonSoftBg()
+                        !isSolvedOrRevealed && isSelected -> sudxGoldTintBg().copy(alpha = 0.72f)
                         else -> MaterialTheme.colorScheme.surface
                     }
 
                     val optionTextColor = when {
-                        isSolvedOrRevealed && isCorrectOption -> SudXMidnightNavy
-                        wasTriedWrong -> SudXMidnightNavy.copy(alpha = 0.68f)
+                        wasTriedWrong && !isSolvedOrRevealed -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                         else -> MaterialTheme.colorScheme.onSurface
                     }
 
@@ -433,7 +720,7 @@ fun PracticeScreen(
                                     .background(
                                         when {
                                             isSolvedOrRevealed && isCorrectOption -> SudXEmeraldDark
-                                            wasTriedWrong -> SudXCrimson
+                                            wasTriedWrong -> sudxCrimsonFg()
                                             isSelected -> SudXRoyalNavy
                                             else -> MaterialTheme.colorScheme.surfaceVariant
                                         }
@@ -476,7 +763,7 @@ fun PracticeScreen(
                                     Text(
                                         text = "تمت التجربة — راجع التوجيه واختر بديلاً أدق",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = SudXCrimson
+                                        color = sudxCrimsonFg()
                                     )
                                 }
                             }
@@ -484,7 +771,7 @@ fun PracticeScreen(
                     }
                 }
 
-                // Guided Socratic Feedback Card (Visible during wrong attempts / pre-hints OR after solving)
+                // Guided Socratic Feedback Card
                 val showGuidanceCard = !attemptState.activeGuidanceText.isNullOrBlank() ||
                     guidedHintState !is GuidedHintUiState.Idle ||
                     attemptState.isSolvedOrRevealed
@@ -507,12 +794,12 @@ fun PracticeScreen(
                                 .fillMaxWidth()
                                 .border(
                                     width = 1.2.dp,
-                                    color = if (isSolvedCorrectly) SudXEmeraldDark.copy(alpha = 0.55f) else SudXChampagneGold.copy(alpha = 0.75f),
+                                    color = if (isSolvedCorrectly) sudxEmeraldFg().copy(alpha = 0.6f) else sudxGoldBorder(),
                                     shape = RoundedCornerShape(16.dp)
                                 )
                                 .testTag("quiz_guided_feedback_card"),
                             colors = CardDefaults.cardColors(
-                                containerColor = if (isSolvedCorrectly) Color(0xFFF0FDF4) else SudXGoldTint
+                                containerColor = if (isSolvedCorrectly) sudxEmeraldSoftBg() else sudxGoldTintBg()
                             ),
                             shape = RoundedCornerShape(16.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -522,7 +809,7 @@ fun PracticeScreen(
                                     Icon(
                                         imageVector = if (isSolvedCorrectly) Icons.Default.School else Icons.Default.Psychology,
                                         contentDescription = null,
-                                        tint = if (isSolvedCorrectly) SudXEmeraldDark else SudXBronzeGold,
+                                        tint = if (isSolvedCorrectly) sudxEmeraldFg() else sudxGoldFg(),
                                         modifier = Modifier.size(22.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -534,12 +821,14 @@ fun PracticeScreen(
                                                 "أحسنت! استثمرت التوجيه ووصلت للحل الصحيح"
                                             attemptState.wasRevealedWithoutSolving ->
                                                 "الإجابة والشرح المنهجي"
+                                            attemptState.feedbackMode == QuizFeedbackMode.FREE_INSTANT ->
+                                                "تصحيح وشرح المعلم الذكي"
                                             else ->
                                                 "توجيه المعلم الذكي (بدون كشف الحل)"
                                         },
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = if (isSolvedCorrectly) SudXEmeraldDark else SudXMidnightNavy
+                                        color = if (isSolvedCorrectly) sudxEmeraldFg() else MaterialTheme.colorScheme.onSurface
                                     )
                                 }
 
@@ -551,13 +840,13 @@ fun PracticeScreen(
                                             CircularProgressIndicator(
                                                 modifier = Modifier.size(16.dp),
                                                 strokeWidth = 2.dp,
-                                                color = SudXBronzeGold
+                                                color = sudxGoldFg()
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
                                                 text = "المعلم الذكي يصيغ لك توجيهاً مخصصاً...",
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = SudXMidnightNavy
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
                                         }
                                     }
@@ -565,97 +854,67 @@ fun PracticeScreen(
                                         Text(
                                             text = displayedGuidance,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = SudXMidnightNavy,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             lineHeight = 22.sp
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
                                             text = currentHintState.message,
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = SudXCrimson
+                                            color = sudxCrimsonFg()
                                         )
                                     }
                                     else -> {
                                         Text(
                                             text = displayedGuidance,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = SudXMidnightNavy,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             lineHeight = 22.sp
                                         )
                                     }
                                 }
 
-                                // Deeper AI Socratic Nudge + Optional Reveal Answer after trying
                                 AnimatedVisibility(visible = !attemptState.isSolvedOrRevealed) {
                                     Column {
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        OutlinedButton(
+                                            onClick = { viewModel.requestDeepSocraticGuidance() },
+                                            enabled = guidedHintState !is GuidedHintUiState.Loading,
+                                            border = BorderStroke(1.dp, sudxNavyFg().copy(alpha = 0.55f)),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .minimumInteractiveComponentSize()
+                                                .testTag("quiz_deep_ai_guidance_btn")
                                         ) {
-                                            OutlinedButton(
-                                                onClick = { viewModel.requestDeepSocraticGuidance() },
-                                                enabled = guidedHintState !is GuidedHintUiState.Loading,
-                                                border = BorderStroke(1.dp, SudXRoyalNavy.copy(alpha = 0.5f)),
-                                                shape = RoundedCornerShape(12.dp),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .minimumInteractiveComponentSize()
-                                                    .testTag("quiz_deep_ai_guidance_btn")
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.AutoAwesome,
-                                                    contentDescription = null,
-                                                    tint = SudXRoyalNavy,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = "توجيه أعمق (AI)",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = SudXRoyalNavy,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-
-                                            if (attemptState.attemptedWrongIndices.isNotEmpty()) {
-                                                TextButton(
-                                                    onClick = { viewModel.revealCurrentQuestionAnswer() },
-                                                    modifier = Modifier
-                                                        .minimumInteractiveComponentSize()
-                                                        .testTag("quiz_reveal_answer_btn")
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Visibility,
-                                                        contentDescription = null,
-                                                        tint = SudXBronzeGold,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(
-                                                        text = "أرني الحل",
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        color = SudXBronzeGold,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            }
+                                            Icon(
+                                                imageVector = Icons.Default.AutoAwesome,
+                                                contentDescription = null,
+                                                tint = sudxGoldFg(),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "اطلب توجيهاً أعمق من المعلم الذكي (AI)",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = sudxNavyFg(),
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
                                     }
                                 }
 
-                                // Full explanation shown ONLY once solved or revealed
                                 if (attemptState.isSolvedOrRevealed) {
                                     if (currentQuestion.explanation.isNotBlank()) {
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Surface(
                                             shape = RoundedCornerShape(10.dp),
-                                            color = Color.White.copy(alpha = 0.72f)
+                                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
                                         ) {
                                             Text(
                                                 text = "الشرح المنهجي: ${currentQuestion.explanation}",
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = Color(0xFF334155),
+                                                color = MaterialTheme.colorScheme.onSurface,
                                                 lineHeight = 20.sp,
                                                 modifier = Modifier.padding(10.dp)
                                             )
@@ -666,7 +925,7 @@ fun PracticeScreen(
                                         Text(
                                             text = "نصيحة الامتحان: ${currentQuestion.teacherGuidance}",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = SudXRoyalNavy,
+                                            color = sudxNavyFg(),
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
@@ -676,41 +935,67 @@ fun PracticeScreen(
                     }
                 }
 
-                // Action Button: Check Attempt OR Next Question / Finish
+                // Action & Bidirectional Navigation Row (always free to move back/skip/finish)
                 item {
-                    if (!attemptState.isSolvedOrRevealed) {
-                        Button(
-                            onClick = { viewModel.submitQuizAnswer() },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                                .testTag("submit_answer_button"),
-                            enabled = selectedIndex != null,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = SudXRoyalNavy,
-                                contentColor = SudXGoldTint
-                            ),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Text(
-                                text = if (attemptState.attemptedWrongIndices.isEmpty()) {
-                                    "تحقق من الإجابة"
-                                } else {
-                                    "تحقق من المحاولة الجديدة"
-                                },
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (!attemptState.isSolvedOrRevealed) {
+                            Button(
+                                onClick = { viewModel.submitQuizAnswer() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                                    .testTag("submit_answer_button"),
+                                enabled = selectedIndex != null,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SudXRoyalNavy,
+                                    contentColor = SudXGoldTint
+                                ),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Text(
+                                    text = if (attemptState.attemptedWrongIndices.isEmpty()) {
+                                        "تحقق من الإجابة"
+                                    } else {
+                                        "تحقق من المحاولة الجديدة"
+                                    },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
-                    } else {
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            OutlinedButton(
+                                onClick = { viewModel.previousQuizQuestion() },
+                                enabled = currentIndex > 0,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp)
+                                    .testTag("previous_question_button"),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "السابق",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
                             Button(
                                 onClick = { viewModel.nextQuizQuestion() },
                                 modifier = Modifier
-                                    .weight(1f)
+                                    .weight(1.25f)
                                     .height(50.dp)
                                     .testTag("next_question_button"),
                                 colors = ButtonDefaults.buttonColors(
@@ -719,8 +1004,13 @@ fun PracticeScreen(
                                 ),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
+                                val nextLabel = when {
+                                    currentIndex + 1 >= questions.size -> "عرض النتيجة النهائية"
+                                    attemptState.isSolvedOrRevealed -> "السؤال التالي"
+                                    else -> "تخطي / التالي"
+                                }
                                 Text(
-                                    text = if (currentIndex + 1 < questions.size) "السؤال التالي" else "عرض النتيجة النهائية",
+                                    text = nextLabel,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -730,27 +1020,30 @@ fun PracticeScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
+                        }
 
+                        if (attemptState.isSolvedOrRevealed) {
                             OutlinedButton(
                                 onClick = {
                                     onNavigateToChat("يا أستاذ، أريد أن تناقشني في تفاصيل هذا السؤال: ${currentQuestion.question}")
                                 },
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp)
+                                    .fillMaxWidth()
+                                    .height(48.dp)
                                     .testTag("discuss_question_tutor_btn"),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = null,
-                                    tint = SudXChampagneGold,
+                                    tint = sudxGoldFg(),
                                     modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "نقاش الأستاذ",
-                                    color = MaterialTheme.colorScheme.primary
+                                    text = "ناقش السؤال مع المعلم الذكي",
+                                    color = sudxNavyFg(),
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
@@ -832,7 +1125,7 @@ private fun QuizCompletionSummaryView(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "أحسنت! أتممت الاختبار التوجيهي",
+                        text = "أحسنت! ملخص جلستك التدريبية",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = SudXGoldTint,
@@ -924,7 +1217,7 @@ private fun QuizCompletionSummaryView(
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = null,
-                                tint = SudXBronzeGold,
+                                tint = sudxGoldFg(),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -938,7 +1231,7 @@ private fun QuizCompletionSummaryView(
                             Icon(
                                 imageVector = Icons.Default.Psychology,
                                 contentDescription = null,
-                                tint = SudXRoyalNavy,
+                                tint = sudxNavyFg(),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))

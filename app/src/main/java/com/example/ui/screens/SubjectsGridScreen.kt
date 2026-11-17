@@ -484,6 +484,7 @@ fun PdfTextbookCard(
     PremiumSurfaceCard(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onReadPdf() }
             .testTag("pdf_textbook_card_${book.id}"),
         cornerRadius = 20.dp,
         elevation = 4.dp
@@ -615,7 +616,7 @@ fun PdfTextbookCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "فتح وقراءة PDF",
+                        text = "فتح جميع الصفحات (PDF)",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )

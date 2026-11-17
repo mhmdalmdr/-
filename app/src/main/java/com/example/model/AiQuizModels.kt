@@ -22,6 +22,20 @@ enum class QuizDifficulty(
     )
 }
 
+enum class QuizFeedbackMode(
+    val titleAr: String,
+    val descriptionAr: String
+) {
+    GUIDED(
+        titleAr = "توجيه ذكي تدريجي",
+        descriptionAr = "تلميحات سقراطية تقودك للحل بدون كشفه فوراً"
+    ),
+    FREE_INSTANT(
+        titleAr = "تصحيح وشرح فوري",
+        descriptionAr = "عرض التفسير والحل المنهجي مباشرة حسب اختيارك"
+    )
+}
+
 sealed interface QuizGeneratorUiState {
     data object Idle : QuizGeneratorUiState
     data object Generating : QuizGeneratorUiState
@@ -37,6 +51,17 @@ sealed interface GuidedHintUiState {
     data class Error(val message: String) : GuidedHintUiState
 }
 
+data class QuestionAttemptSnapshot(
+    val selectedIndex: Int? = null,
+    val attemptedWrongIndices: Set<Int> = emptySet(),
+    val isSolvedOrRevealed: Boolean = false,
+    val wasRevealedWithoutSolving: Boolean = false,
+    val activeGuidanceText: String? = null,
+    val isGuidanceCorrect: Boolean = false,
+    val hasRequestedPreHint: Boolean = false,
+    val outcome: Int = 0 // 0=unscored, 1=firstTry, 2=guided, 3=revealed
+)
+
 data class QuizAttemptUiState(
     val attemptedWrongIndices: Set<Int> = emptySet(),
     val isSolvedOrRevealed: Boolean = false,
@@ -49,5 +74,7 @@ data class QuizAttemptUiState(
     val revealedCount: Int = 0,
     val totalWrongAttempts: Int = 0,
     val hasRecordedResult: Boolean = false,
-    val isQuizFinished: Boolean = false
+    val isQuizFinished: Boolean = false,
+    val feedbackMode: QuizFeedbackMode = QuizFeedbackMode.GUIDED,
+    val questionSnapshots: Map<Int, QuestionAttemptSnapshot> = emptyMap()
 )

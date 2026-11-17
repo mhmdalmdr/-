@@ -23,17 +23,22 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Quiz
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Topic
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -54,16 +59,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CurriculumData
 import com.example.model.QuizDifficulty
+import com.example.model.QuizFeedbackMode
 import com.example.model.QuizGeneratorUiState
-import com.example.ui.theme.SudXBronzeGold
+import com.example.model.SubjectCategory
 import com.example.ui.theme.SudXChampagneGold
-import com.example.ui.theme.SudXCrimson
-import com.example.ui.theme.SudXGoldBorder
 import com.example.ui.theme.SudXGoldTint
 import com.example.ui.theme.SudXMidnightNavy
 import com.example.ui.theme.SudXRoyalNavy
 import com.example.ui.theme.SudXSapphireSlate
 import com.example.ui.theme.SudXSoftGold
+import com.example.ui.theme.sudxCrimsonFg
+import com.example.ui.theme.sudxCrimsonSoftBg
+import com.example.ui.theme.sudxGoldBorder
+import com.example.ui.theme.sudxGoldFg
+import com.example.ui.theme.sudxGoldTintBg
 
 @Composable
 fun AiQuizGeneratorPanel(
@@ -71,34 +80,49 @@ fun AiQuizGeneratorPanel(
     topicInput: String,
     selectedDifficulty: QuizDifficulty,
     questionCount: Int,
+    customInstructions: String,
+    selectedFeedbackMode: QuizFeedbackMode,
     generatorState: QuizGeneratorUiState,
     onSelectSubject: (String) -> Unit,
     onTopicChange: (String) -> Unit,
     onSelectDifficulty: (QuizDifficulty) -> Unit,
     onSelectCount: (Int) -> Unit,
+    onCustomInstructionsChange: (String) -> Unit,
+    onSelectFeedbackMode: (QuizFeedbackMode) -> Unit,
     onGenerateQuiz: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val subjectTitles = remember {
-        CurriculumData.subjects.map { it.title } + "عام — الشهادة السودانية"
+        (CurriculumData.subjects.map { it.title } +
+            SubjectCategory.entries.map { it.titleAr } +
+            "عام — الشهادة السودانية")
+            .distinct()
     }
 
     val suggestedTopics = remember(selectedSubjectTitle) {
-        val matchedSubject = CurriculumData.subjects.firstOrNull { it.title == selectedSubjectTitle }
+        val matchedSubject = CurriculumData.subjects.firstOrNull {
+            it.title == selectedSubjectTitle || it.category.titleAr == selectedSubjectTitle
+        }
         val unitTitles = matchedSubject?.units?.map { it.title }.orEmpty()
         val examTopics = CurriculumData.pastExams
             .filter { it.subjectTitle == selectedSubjectTitle }
             .flatMap { it.keyTopics }
-        (unitTitles + examTopics)
+        (listOf(
+            "شامل لكل دروس المادة",
+            "مسائل وتطبيقات عملية",
+            "أسئلة علل ومفاهيم أساسية"
+        ) + unitTitles + examTopics)
             .distinct()
-            .take(6)
-            .ifEmpty {
-                listOf(
-                    "أسباب الثورة المهدية",
-                    "المراجعة الشاملة للمنهج",
-                    "أسئلة التفكير الناقد والاستنتاج"
-                )
-            }
+            .take(8)
+    }
+
+    val instructionPresets = remember {
+        listOf(
+            "ركّز على الفهم والاستنتاج",
+            "مسائل حسابية متدرجة مع الخطوات",
+            "أسئلة امتحانات شهادة سودانية سابقة",
+            "صياغة مبسطة مع أمثلة تطبيقية"
+        )
     }
 
     val isGenerating = generatorState is QuizGeneratorUiState.Generating
@@ -161,14 +185,14 @@ fun AiQuizGeneratorPanel(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "مولّد الاختبارات التوجيهي (AI)",
+                            text = "مولّد الاختبارات الحر (AI)",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = SudXGoldTint
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "اختر المادة والموضوع، وسيولّد الذكاء الاصطناعي أسئلة اختيار من متعدد مع تلميحات سقراطية تقودك للإجابة بدلاً من كشفها مباشرة.",
+                            text = "لك الحرية الكاملة: اختر أي مادة أو اكتب موضوعك بنفسك، حدد العدد (1–15 سؤالاً)، ونوع التوجيه، وأضف شروطك الخاصة.",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFFE2E8F0),
                             lineHeight = 19.sp
@@ -178,7 +202,7 @@ fun AiQuizGeneratorPanel(
             }
         }
 
-        // 1. Subject Selector
+        // 1. Subject Selector + Free Custom Subject Input
         item {
             PremiumSurfaceCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -186,12 +210,12 @@ fun AiQuizGeneratorPanel(
                         Icon(
                             imageVector = Icons.Default.MenuBook,
                             contentDescription = null,
-                            tint = SudXBronzeGold,
+                            tint = sudxGoldFg(),
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "1. اختر المادة الدراسية",
+                            text = "1. اختر المادة الدراسية (أو اكتب أي مادة)",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -227,6 +251,23 @@ fun AiQuizGeneratorPanel(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = selectedSubjectTitle,
+                        onValueChange = { if (!isGenerating) onSelectSubject(it) },
+                        label = { Text("اسم المادة (يمكنك التعديل أو كتابة أي مادة أخرى)") },
+                        singleLine = true,
+                        enabled = !isGenerating,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SudXChampagneGold,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("ai_quiz_custom_subject_input")
+                    )
                 }
             }
         }
@@ -239,12 +280,12 @@ fun AiQuizGeneratorPanel(
                         Icon(
                             imageVector = Icons.Default.Topic,
                             contentDescription = null,
-                            tint = SudXBronzeGold,
+                            tint = sudxGoldFg(),
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "2. حدد موضوع الاختبار",
+                            text = "2. حدد موضوع الأسئلة بحرية",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -255,7 +296,7 @@ fun AiQuizGeneratorPanel(
                     OutlinedTextField(
                         value = topicInput,
                         onValueChange = { if (!isGenerating) onTopicChange(it) },
-                        label = { Text("اكتب الموضوع (مثال: الحركة الدائرية، التنازع، الأحماض والقواعد)") },
+                        label = { Text("اكتب الموضوع الذي تريده (أو اختر «شامل لكل دروس المادة»)") },
                         singleLine = true,
                         enabled = !isGenerating,
                         shape = RoundedCornerShape(14.dp),
@@ -270,7 +311,7 @@ fun AiQuizGeneratorPanel(
 
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "مقترحات سريعة من المنهج:",
+                        text = "خيارات ومقترحات سريعة:",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold
@@ -291,8 +332,8 @@ fun AiQuizGeneratorPanel(
                                     )
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = SudXGoldTint,
-                                    selectedLabelColor = SudXMidnightNavy,
+                                    selectedContainerColor = sudxGoldTintBg(),
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSurface,
                                     containerColor = MaterialTheme.colorScheme.surface,
                                     labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
@@ -309,7 +350,7 @@ fun AiQuizGeneratorPanel(
             }
         }
 
-        // 3. Difficulty & Question Count
+        // 3. Difficulty & Question Count (1..15)
         item {
             PremiumSurfaceCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -317,7 +358,7 @@ fun AiQuizGeneratorPanel(
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = null,
-                            tint = SudXBronzeGold,
+                            tint = sudxGoldFg(),
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -373,44 +414,251 @@ fun AiQuizGeneratorPanel(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
+                    // Stepper 1..15
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Column {
+                            Text(
+                                text = "عدد الأسئلة (من 1 إلى 15):",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "اختر أي عدد يناسب وقتك",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilledTonalIconButton(
+                                onClick = { if (!isGenerating && questionCount > 1) onSelectCount(questionCount - 1) },
+                                enabled = !isGenerating && questionCount > 1,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("decrease_quiz_count_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Remove,
+                                    contentDescription = "إنقاص عدد الأسئلة"
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = SudXRoyalNavy,
+                                border = BorderStroke(1.dp, SudXChampagneGold)
+                            ) {
+                                Text(
+                                    text = "$questionCount",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = SudXGoldTint,
+                                    modifier = Modifier
+                                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                                        .testTag("ai_quiz_count_display")
+                                )
+                            }
+
+                            FilledTonalIconButton(
+                                onClick = { if (!isGenerating && questionCount < 15) onSelectCount(questionCount + 1) },
+                                enabled = !isGenerating && questionCount < 15,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("increase_quiz_count_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "زيادة عدد الأسئلة"
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf(1, 3, 5, 8, 10, 15)) { count ->
+                            val isSelected = questionCount == count
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { if (!isGenerating) onSelectCount(count) },
+                                label = {
+                                    Text(
+                                        text = if (count == 1) "سؤال واحد" else "$count أسئلة",
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = sudxGoldTintBg(),
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSurface,
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isSelected,
+                                    borderColor = MaterialTheme.colorScheme.outlineVariant,
+                                    selectedBorderColor = SudXChampagneGold
+                                ),
+                                modifier = Modifier.testTag("ai_quiz_count_$count")
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Feedback Style Freedom
+        item {
+            PremiumSurfaceCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = sudxGoldFg(),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "عدد الأسئلة:",
-                            style = MaterialTheme.typography.labelLarge,
+                            text = "4. أسلوب التصحيح والتوجيه",
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(3, 5, 8).forEach { count ->
-                                val isSelected = questionCount == count
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { if (!isGenerating) onSelectCount(count) },
-                                    label = {
-                                        Text(
-                                            text = "$count أسئلة",
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                        )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = SudXGoldTint,
-                                        selectedLabelColor = SudXMidnightNavy
-                                    ),
-                                    border = FilterChipDefaults.filterChipBorder(
-                                        enabled = true,
-                                        selected = isSelected,
-                                        borderColor = MaterialTheme.colorScheme.outlineVariant,
-                                        selectedBorderColor = SudXChampagneGold
-                                    ),
-                                    modifier = Modifier.testTag("ai_quiz_count_$count")
-                                )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        QuizFeedbackMode.entries.forEach { mode ->
+                            val isSelected = selectedFeedbackMode == mode
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isSelected) SudXRoyalNavy else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(
+                                    width = if (isSelected) 1.3.dp else 1.dp,
+                                    color = if (isSelected) SudXChampagneGold else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable(enabled = !isGenerating) { onSelectFeedbackMode(mode) }
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("ai_quiz_feedback_${mode.name}")
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = mode.titleAr,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (isSelected) SudXGoldTint else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = mode.descriptionAr,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isSelected) Color(0xFFCBD5E1) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = 16.sp
+                                    )
+                                }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Custom Student Preferences (Optional)
+        item {
+            PremiumSurfaceCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.EditNote,
+                            contentDescription = null,
+                            tint = sudxGoldFg(),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "5. شروطك الخاصة للأسئلة (اختياري)",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = customInstructions,
+                        onValueChange = { if (!isGenerating) onCustomInstructionsChange(it) },
+                        label = { Text("مثال: ركّز على مسائل الوراثة، أو اجعل الخيارات متقاربة بدون تعقيد لغوي") },
+                        minLines = 2,
+                        maxLines = 3,
+                        enabled = !isGenerating,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SudXChampagneGold,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("ai_quiz_custom_instructions_input")
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(instructionPresets) { preset ->
+                            val isSelected = customInstructions.contains(preset)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    if (!isGenerating) {
+                                        onCustomInstructionsChange(preset)
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        text = preset,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = sudxGoldTintBg(),
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSurface,
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isSelected,
+                                    borderColor = MaterialTheme.colorScheme.outlineVariant,
+                                    selectedBorderColor = SudXChampagneGold
+                                )
+                            )
                         }
                     }
                 }
@@ -422,8 +670,8 @@ fun AiQuizGeneratorPanel(
             item {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFFFEF2F2),
-                    border = BorderStroke(1.dp, SudXCrimson.copy(alpha = 0.45f)),
+                    color = sudxCrimsonSoftBg(),
+                    border = BorderStroke(1.dp, sudxCrimsonFg().copy(alpha = 0.5f)),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("ai_quiz_error_banner")
@@ -435,14 +683,14 @@ fun AiQuizGeneratorPanel(
                         Icon(
                             imageVector = Icons.Default.ErrorOutline,
                             contentDescription = null,
-                            tint = SudXCrimson,
+                            tint = sudxCrimsonFg(),
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             text = generatorState.message,
                             style = MaterialTheme.typography.bodySmall,
-                            color = SudXMidnightNavy,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.SemiBold,
                             lineHeight = 19.sp
                         )
@@ -468,7 +716,7 @@ fun AiQuizGeneratorPanel(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "جاري تأليف الاختبار الذكي وتجهيز التلميحات...",
+                        text = "جاري تأليف $questionCount أسئلة مخصصة لك...",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -481,7 +729,7 @@ fun AiQuizGeneratorPanel(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "توليد الاختبار التوجيهي الآن",
+                        text = "توليد الاختبار الآن ($questionCount ${if (questionCount == 1) "سؤال" else "أسئلة"})",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.ExtraBold
                     )
@@ -493,8 +741,8 @@ fun AiQuizGeneratorPanel(
         item {
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = SudXGoldTint.copy(alpha = 0.72f),
-                border = BorderStroke(1.dp, SudXGoldBorder),
+                color = sudxGoldTintBg().copy(alpha = 0.85f),
+                border = BorderStroke(1.dp, sudxGoldBorder()),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -504,14 +752,14 @@ fun AiQuizGeneratorPanel(
                     Icon(
                         imageVector = Icons.Default.Quiz,
                         contentDescription = null,
-                        tint = SudXBronzeGold,
+                        tint = sudxGoldFg(),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "أسلوب التعلّم الموجَّه: عند اختيار إجابة خاطئة لن يظهر الحل فوراً؛ بل سيعطيك الأستاذ الذكي تلميحاً يصحح تفكيرك لتصل للإجابة الصحيحة بنفسك.",
+                        text = "داخل الاختبار أيضاً تملك الحرية الكاملة: يمكنك التنقل بين الأسئلة بأي ترتيب، تخطي أي سؤال، طلب الحل فوراً أو اختيار التوجيه الذكي، وتغيير النمط في أي لحظة.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = SudXMidnightNavy,
+                        color = MaterialTheme.colorScheme.onSurface,
                         lineHeight = 18.sp
                     )
                 }

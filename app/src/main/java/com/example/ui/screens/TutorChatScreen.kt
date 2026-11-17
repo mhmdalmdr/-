@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.HistoryEdu
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Person
@@ -45,6 +47,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -63,11 +66,14 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,6 +128,8 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -140,6 +148,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.platform.LocalContext
 import com.example.model.TutorRole
+import kotlinx.coroutines.launch
 
 @Composable
 fun TutorChatScreen(
@@ -158,8 +167,45 @@ fun TutorChatScreen(
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     var inputText by remember { mutableStateOf("") }
+    var speakingMessageId by remember { mutableStateOf<String?>(null) }
+    var isTtsReady by remember { mutableStateOf(false) }
+
+    val tts = remember(context) {
+        var engine: TextToSpeech? = null
+        engine = TextToSpeech(context.applicationContext) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val arLocale = Locale("ar", "SD")
+                val res = engine?.setLanguage(arLocale)
+                if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    engine?.setLanguage(Locale("ar"))
+                }
+                engine?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) {
+                        speakingMessageId = null
+                    }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        speakingMessageId = null
+                    }
+                })
+                isTtsReady = true
+            }
+        }
+        engine
+    }
+
+    DisposableEffect(tts) {
+        onDispose {
+            runCatching {
+                tts.stop()
+                tts.shutdown()
+            }
+        }
+    }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -186,6 +232,10 @@ fun TutorChatScreen(
     var isTopOptionsBarVisible by remember { mutableStateOf(false) }
     var historySearchQuery by remember { mutableStateOf("") }
     var noteDraftContent by remember { mutableStateOf<String?>(null) }
+
+    val showJumpToBottom by remember {
+        derivedStateOf { listState.canScrollForward }
+    }
 
     val subjectPrompts = remember {
         listOf(
@@ -303,7 +353,7 @@ fun TutorChatScreen(
                                 )
                             }
                             Text(
-                                text = "معلمك الخبير للشهادة السودانية",
+                                text = "${selectedTutorRole.titleAr} • ${selectedTutorRole.shortBadge}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFFE2E8F0),
                                 maxLines = 1,
@@ -723,73 +773,199 @@ fun TutorChatScreen(
         }
 
         // 3. Message List (Backed by Room Local Database)
-        LazyColumn(
-            state = listState,
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .testTag("message_list"),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 12.dp)
         ) {
-            if (filteredMessages.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 40.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.HistoryEdu,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(48.dp)
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp)
+                    .testTag("message_list"),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp)
+            ) {
+                if (filteredMessages.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Default.HistoryEdu,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "لا توجد رسائل مطابقة للبحث في السجل المحلي",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(filteredMessages, key = { it.id }) { message ->
+                        val isSpeakingThis = speakingMessageId == message.id
+                        ChatMessageItem(
+                            message = message,
+                            isSpeaking = isSpeakingThis,
+                            onToggleSpeak = {
+                                if (!isTtsReady) {
+                                    Toast.makeText(
+                                        context,
+                                        "محرك القراءة الصوتية غير جاهز على هذا الجهاز.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else if (isSpeakingThis) {
+                                    tts.stop()
+                                    speakingMessageId = null
+                                } else {
+                                    speakingMessageId = message.id
+                                    tts.speak(
+                                        message.text,
+                                        TextToSpeech.QUEUE_FLUSH,
+                                        null,
+                                        message.id
+                                    )
+                                }
+                            },
+                            onCopyFeedback = {
+                                Toast.makeText(context, "تم نسخ الشرح", Toast.LENGTH_SHORT).show()
+                            },
+                            onSaveAsNote = {
+                                noteDraftContent = message.text
+                            },
+                            onDelete = { viewModel.deleteMessage(message.id) }
+                        )
+                    }
+
+                    // Contextual 1-tap multi-turn follow-up suggestions
+                    if (!isBusy && historySearchQuery.isBlank() && filteredMessages.lastOrNull()?.isUser == false) {
+                        item(key = "follow_up_suggestions") {
+                            val followUps = listOf(
+                                "أعطني مثالاً تطبيقياً" to "يا أستاذ، أعطني مثالاً تطبيقياً محلولاً على آخر نقطة شرحتها.",
+                                "اختبرني بسؤال" to "يا أستاذ، اختبرني بسؤال امتحاني قصير على هذه النقطة وصحح لي إجابتي.",
+                                "لخّص في 3 نقاط" to "يا أستاذ، لخّص لي هذه الإجابة في 3 نقاط مركزة للحفظ."
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "لا توجد رسائل مطابقة للبحث في السجل المحلي",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(followUps) { (label, prompt) ->
+                                    FilterChip(
+                                        selected = false,
+                                        onClick = { viewModel.sendMessage(prompt) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.AutoAwesome,
+                                                contentDescription = null,
+                                                tint = sudxGoldFg(),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        },
+                                        label = {
+                                            Text(
+                                                text = label,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            containerColor = sudxGoldTintBg(),
+                                            labelColor = MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            enabled = true,
+                                            selected = false,
+                                            borderColor = sudxGoldBorder()
+                                        ),
+                                        modifier = Modifier.minimumInteractiveComponentSize()
+                                    )
+                                }
+                            }
                         }
                     }
                 }
-            } else {
-                items(filteredMessages, key = { it.id }) { message ->
-                    ChatMessageItem(
-                        message = message,
-                        onSaveAsNote = {
-                            noteDraftContent = message.text
-                        },
-                        onDelete = { viewModel.deleteMessage(message.id) }
-                    )
+
+                // Real-time streaming or loading bubble
+                if (tutorState is TutorUiState.Loading) {
+                    item(key = "loading_indicator") {
+                        LoadingTeacherBubble(isSearchGrounded = isSearchGroundingEnabled)
+                    }
+                } else if (tutorState is TutorUiState.Streaming) {
+                    val streamingState = tutorState as TutorUiState.Streaming
+                    item(key = "streaming_indicator") {
+                        StreamingTeacherBubble(
+                            partialText = streamingState.partialResponse,
+                            groundingSources = streamingState.groundingSources,
+                            searchQueries = streamingState.searchQueries
+                        )
+                    }
+                } else if (tutorState is TutorUiState.Error) {
+                    val err = (tutorState as TutorUiState.Error).errorMessage
+                    item(key = "error_indicator") {
+                        ErrorTeacherBubble(
+                            errorMessage = err,
+                            onRetry = { viewModel.retryLastMessage() }
+                        )
+                    }
                 }
             }
 
-            // Real-time streaming or loading bubble
-            if (tutorState is TutorUiState.Loading) {
-                item(key = "loading_indicator") {
-                    LoadingTeacherBubble(isSearchGrounded = isSearchGroundingEnabled)
-                }
-            } else if (tutorState is TutorUiState.Streaming) {
-                val streamingState = tutorState as TutorUiState.Streaming
-                item(key = "streaming_indicator") {
-                    StreamingTeacherBubble(
-                        partialText = streamingState.partialResponse,
-                        groundingSources = streamingState.groundingSources,
-                        searchQueries = streamingState.searchQueries
-                    )
-                }
-            } else if (tutorState is TutorUiState.Error) {
-                val err = (tutorState as TutorUiState.Error).errorMessage
-                item(key = "error_indicator") {
-                    ErrorTeacherBubble(
-                        errorMessage = err,
-                        onRetry = { viewModel.retryLastMessage() }
-                    )
+            // Floating Jump-to-Latest pill when scrolled up
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showJumpToBottom && filteredMessages.isNotEmpty(),
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 10.dp)
+            ) {
+                Surface(
+                    onClick = {
+                        coroutineScope.launch {
+                            val totalItems = listState.layoutInfo.totalItemsCount
+                            if (totalItems > 0) {
+                                listState.animateScrollToItem(totalItems - 1)
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(50),
+                    color = SudXMidnightNavy,
+                    shadowElevation = 6.dp,
+                    border = BorderStroke(1.dp, SudXChampagneGold),
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .testTag("scroll_to_bottom_button")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "الانتقال إلى أحدث رسالة",
+                            tint = SudXChampagneGold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "الأحدث",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = SudXGoldTint,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -1094,6 +1270,9 @@ fun TutorChatScreen(
 @Composable
 fun ChatMessageItem(
     message: ChatMessage,
+    isSpeaking: Boolean = false,
+    onToggleSpeak: (() -> Unit)? = null,
+    onCopyFeedback: (() -> Unit)? = null,
     onSaveAsNote: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
@@ -1160,12 +1339,17 @@ fun ChatMessageItem(
                             .fillMaxWidth()
                             .padding(bottom = 6.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Text(
                                 text = message.tutorRoleName ?: "المعلم الذكي",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Icon(
@@ -1206,18 +1390,34 @@ fun ChatMessageItem(
                                 Spacer(modifier = Modifier.width(4.dp))
                             }
 
+                            if (onToggleSpeak != null) {
+                                IconButton(
+                                    onClick = onToggleSpeak,
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .testTag("speak_message_${message.id}")
+                                ) {
+                                    Icon(
+                                        imageVector = if (isSpeaking) Icons.Default.StopCircle else Icons.AutoMirrored.Filled.VolumeUp,
+                                        contentDescription = if (isSpeaking) "إيقاف القراءة الصوتية" else "استمع للشرح",
+                                        tint = if (isSpeaking) sudxCrimsonFg() else sudxNavyFg(),
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+                            }
+
                             if (onSaveAsNote != null) {
                                 IconButton(
                                     onClick = onSaveAsNote,
                                     modifier = Modifier
-                                        .size(28.dp)
+                                        .size(34.dp)
                                         .testTag("save_message_note_${message.id}")
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.BookmarkAdd,
                                         contentDescription = "حفظ كملاحظة تعليمية",
                                         tint = sudxGoldFg(),
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(17.dp)
                                     )
                                 }
                             }
@@ -1225,27 +1425,28 @@ fun ChatMessageItem(
                             IconButton(
                                 onClick = {
                                     clipboardManager.setText(AnnotatedString(message.text))
+                                    onCopyFeedback?.invoke()
                                 },
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(34.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ContentCopy,
                                     contentDescription = "نسخ الشرح",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(15.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
 
                             if (onDelete != null) {
                                 IconButton(
                                     onClick = onDelete,
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(34.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.DeleteOutline,
                                         contentDescription = "حذف من السجل",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(15.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }

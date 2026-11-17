@@ -22,8 +22,10 @@ import com.example.model.PomodoroPreset
 import com.example.model.PomodoroSessionLog
 import com.example.model.PomodoroUiState
 import com.example.model.QuizQuestion
+import com.example.model.QuestionAttemptSnapshot
 import com.example.model.QuizAttemptUiState
 import com.example.model.QuizDifficulty
+import com.example.model.QuizFeedbackMode
 import com.example.model.QuizGeneratorUiState
 import com.example.model.QuizResultRecord
 import com.example.model.ExamTip
@@ -298,6 +300,12 @@ class TutorViewModel(
 
     private val _quizQuestionCount = MutableStateFlow(5)
     val quizQuestionCount: StateFlow<Int> = _quizQuestionCount.asStateFlow()
+
+    private val _quizCustomInstructions = MutableStateFlow("")
+    val quizCustomInstructions: StateFlow<String> = _quizCustomInstructions.asStateFlow()
+
+    private val _quizFeedbackMode = MutableStateFlow(QuizFeedbackMode.GUIDED)
+    val quizFeedbackMode: StateFlow<QuizFeedbackMode> = _quizFeedbackMode.asStateFlow()
 
     private var quizGenerationJob: Job? = null
     private var guidedHintJob: Job? = null
@@ -1188,7 +1196,20 @@ class TutorViewModel(
     }
 
     fun updateQuizGeneratorCount(count: Int) {
-        _quizQuestionCount.value = count.coerceIn(3, 8)
+        _quizQuestionCount.value = count.coerceIn(1, 15)
+    }
+
+    fun updateQuizGeneratorCustomInstructions(instructions: String) {
+        _quizCustomInstructions.value = instructions
+    }
+
+    fun updateQuizFeedbackMode(mode: QuizFeedbackMode) {
+        _quizFeedbackMode.value = mode
+        _quizAttemptState.update { it.copy(feedbackMode = mode) }
+    }
+
+    fun changeQuizFeedbackModeDuringQuiz(mode: QuizFeedbackMode) {
+        updateQuizFeedbackMode(mode)
     }
 
     fun generateAiQuiz() {
@@ -1201,6 +1222,12 @@ class TutorViewModel(
 
         val difficulty = _quizSelectedDifficulty.value
         val count = _quizQuestionCount.value
+        val customNotes = _quizCustomInstructions.value.trim()
+        val customSection = if (customNotes.isNotBlank()) {
+            "\n            - تعليمات وتفضيلات الطالب الخاصة (التزم بها بدقة): $customNotes"
+        } else {
+            ""
+        }
 
         quizGenerationJob?.cancel()
         guidedHintJob?.cancel()
@@ -1211,12 +1238,12 @@ class TutorViewModel(
             أنشئ اختبار اختيار من متعدد مكوّن من $count أسئلة بالضبط.
             - المادة الدراسية: $subject
             - الموضوع المحدد: $topic
-            - مستوى الصعوبة: ${difficulty.titleAr} (${difficulty.promptDescription})
+            - مستوى الصعوبة: ${difficulty.titleAr} (${difficulty.promptDescription})$customSection
             
             تأكد من:
             - تنوع الأسئلة بحيث تغطي جوانب مختلفة من الموضوع ولا تتكرر الفكرة نفسها.
             - احتواء كل سؤال على 4 خيارات (options) و4 رسائل توجيهية مطابقة لها بالترتيب (optionHints).
-            - أن تقود رسائل التوجيه (socraticHint و optionHints للخيارات الخاطئة) الطالب للتفكير واكتشاف الخطأ دون التصريح بالإجابة الصحيحة نهائياً.
+            - أن تقود رسائل التوجيه (socraticHint و optionHints للخيارات الخاطئة) الطالب للتفكير واكتشاف الخطأ دون التصريح بالإجابة الصحيحة نهائياً، مع كتابة شرح منهجي وافٍ في حقل (explanation).
         """.trimIndent()
 
         quizGenerationJob = viewModelScope.launch {
@@ -1271,10 +1298,12 @@ class TutorViewModel(
 
     fun submitQuizAnswer() {
         val selectedIdx = _selectedAnswerIndex.value ?: return
-        val currentQuestion = _quizQuestions.value.getOrNull(_currentQuizIndex.value) ?: return
+        val qIdx = _currentQuizIndex.value
+        val currentQuestion = _quizQuestions.value.getOrNull(qIdx) ?: return
         val currentAttempt = _quizAttemptState.value
         if (currentAttempt.isSolvedOrRevealed) return
 
+        val existingOutcome = currentAttempt.questionSnapshots[qIdx]?.outcome ?: 0
         val isCorrect = selectedIdx == currentQuestion.correctIndex
         if (isCorrect) {
             guidedHintJob?.cancel()
@@ -1288,6 +1317,18 @@ class TutorViewModel(
                     "رائع! استثمرت التوجيه بنجاح ووصلت إلى الإجابة الصحيحة بنفسك."
                 }
 
+            val finalOutcome = if (existingOutcome != 0) existingOutcome else if (isFirstTry) 1 else 2
+            val snapshot = QuestionAttemptSnapshot(
+                selectedIndex = selectedIdx,
+                attemptedWrongIndices = currentAttempt.attemptedWrongIndices,
+                isSolvedOrRevealed = true,
+                wasRevealedWithoutSolving = false,
+                activeGuidanceText = affirmation,
+                isGuidanceCorrect = true,
+                hasRequestedPreHint = currentAttempt.hasRequestedPreHint,
+                outcome = finalOutcome
+            )
+
             _isAnswerSubmitted.value = true
             _quizAttemptState.update { state ->
                 state.copy(
@@ -1295,16 +1336,34 @@ class TutorViewModel(
                     wasRevealedWithoutSolving = false,
                     activeGuidanceText = affirmation,
                     isGuidanceCorrect = true,
-                    firstTryCorrectCount = state.firstTryCorrectCount + if (isFirstTry) 1 else 0,
-                    guidedCorrectCount = state.guidedCorrectCount + if (!isFirstTry) 1 else 0
+                    firstTryCorrectCount = state.firstTryCorrectCount + if (existingOutcome == 0 && isFirstTry) 1 else 0,
+                    guidedCorrectCount = state.guidedCorrectCount + if (existingOutcome == 0 && !isFirstTry) 1 else 0,
+                    questionSnapshots = state.questionSnapshots + (qIdx to snapshot)
                 )
             }
         } else {
             val updatedWrong = currentAttempt.attemptedWrongIndices + selectedIdx
-            val targetedHint = currentQuestion.optionHints.getOrNull(selectedIdx)
+            val baseHint = currentQuestion.optionHints.getOrNull(selectedIdx)
                 ?.takeIf { it.isNotBlank() }
                 ?: currentQuestion.socraticHint.takeIf { it.isNotBlank() }
                 ?: "هذا الخيار يحتاج إلى إعادة نظر. فكر في القاعدة الأساسية أو المعطيات في السؤال وحاول اختياراً آخر — أو اطلب توجيهاً إضافياً من المعلم الذكي."
+
+            val feedbackText = if (currentAttempt.feedbackMode == QuizFeedbackMode.FREE_INSTANT && currentQuestion.explanation.isNotBlank()) {
+                "$baseHint\n\nالتفسير المنهجي المباشر: ${currentQuestion.explanation}"
+            } else {
+                baseHint
+            }
+
+            val snapshot = QuestionAttemptSnapshot(
+                selectedIndex = null,
+                attemptedWrongIndices = updatedWrong,
+                isSolvedOrRevealed = false,
+                wasRevealedWithoutSolving = false,
+                activeGuidanceText = feedbackText,
+                isGuidanceCorrect = false,
+                hasRequestedPreHint = currentAttempt.hasRequestedPreHint,
+                outcome = existingOutcome
+            )
 
             _selectedAnswerIndex.value = null
             _isAnswerSubmitted.value = false
@@ -1313,8 +1372,9 @@ class TutorViewModel(
                 state.copy(
                     attemptedWrongIndices = updatedWrong,
                     totalWrongAttempts = state.totalWrongAttempts + 1,
-                    activeGuidanceText = targetedHint,
-                    isGuidanceCorrect = false
+                    activeGuidanceText = feedbackText,
+                    isGuidanceCorrect = false,
+                    questionSnapshots = state.questionSnapshots + (qIdx to snapshot)
                 )
             }
         }
@@ -1423,9 +1483,23 @@ class TutorViewModel(
     }
 
     fun revealCurrentQuestionAnswer() {
-        val currentQuestion = _quizQuestions.value.getOrNull(_currentQuizIndex.value) ?: return
+        val qIdx = _currentQuizIndex.value
+        val currentQuestion = _quizQuestions.value.getOrNull(qIdx) ?: return
         val attempt = _quizAttemptState.value
         if (attempt.isSolvedOrRevealed) return
+
+        val existingOutcome = attempt.questionSnapshots[qIdx]?.outcome ?: 0
+        val revealText = "تم كشف الإجابة بناءً على طلبك — راجع الشرح المنهجي أسفله لتثبيت الفكرة."
+        val snapshot = QuestionAttemptSnapshot(
+            selectedIndex = currentQuestion.correctIndex,
+            attemptedWrongIndices = attempt.attemptedWrongIndices,
+            isSolvedOrRevealed = true,
+            wasRevealedWithoutSolving = true,
+            activeGuidanceText = revealText,
+            isGuidanceCorrect = false,
+            hasRequestedPreHint = attempt.hasRequestedPreHint,
+            outcome = if (existingOutcome != 0) existingOutcome else 3
+        )
 
         guidedHintJob?.cancel()
         _guidedHintState.value = GuidedHintUiState.Idle
@@ -1435,59 +1509,111 @@ class TutorViewModel(
             state.copy(
                 isSolvedOrRevealed = true,
                 wasRevealedWithoutSolving = true,
-                activeGuidanceText = "تم كشف الإجابة بناءً على طلبك — راجع الشرح المنهجي أسفله لتثبيت الفكرة.",
+                activeGuidanceText = revealText,
                 isGuidanceCorrect = false,
-                revealedCount = state.revealedCount + 1
+                revealedCount = state.revealedCount + if (existingOutcome == 0) 1 else 0,
+                questionSnapshots = state.questionSnapshots + (qIdx to snapshot)
             )
         }
     }
 
-    fun nextQuizQuestion() {
+    private fun buildCurrentQuestionSnapshot(): QuestionAttemptSnapshot {
+        val qIdx = _currentQuizIndex.value
+        val state = _quizAttemptState.value
+        return QuestionAttemptSnapshot(
+            selectedIndex = _selectedAnswerIndex.value,
+            attemptedWrongIndices = state.attemptedWrongIndices,
+            isSolvedOrRevealed = state.isSolvedOrRevealed,
+            wasRevealedWithoutSolving = state.wasRevealedWithoutSolving,
+            activeGuidanceText = state.activeGuidanceText,
+            isGuidanceCorrect = state.isGuidanceCorrect,
+            hasRequestedPreHint = state.hasRequestedPreHint,
+            outcome = state.questionSnapshots[qIdx]?.outcome ?: 0
+        )
+    }
+
+    fun jumpToQuizQuestion(targetIndex: Int) {
+        val total = _quizQuestions.value.size
+        val currentIndex = _currentQuizIndex.value
+        if (targetIndex !in 0 until total || targetIndex == currentIndex) return
+
         guidedHintJob?.cancel()
         _guidedHintState.value = GuidedHintUiState.Idle
-        val total = _quizQuestions.value.size
-        if (_currentQuizIndex.value + 1 < total) {
-            _currentQuizIndex.value = _currentQuizIndex.value + 1
-            _selectedAnswerIndex.value = null
-            _isAnswerSubmitted.value = false
-            _quizAttemptState.update { state ->
-                state.copy(
-                    attemptedWrongIndices = emptySet(),
-                    isSolvedOrRevealed = false,
-                    wasRevealedWithoutSolving = false,
-                    activeGuidanceText = null,
-                    isGuidanceCorrect = false,
-                    hasRequestedPreHint = false
-                )
-            }
+
+        val currentState = _quizAttemptState.value
+        val updatedSnapshots = currentState.questionSnapshots + (currentIndex to buildCurrentQuestionSnapshot())
+        val targetSnapshot = updatedSnapshots[targetIndex] ?: QuestionAttemptSnapshot()
+
+        _currentQuizIndex.value = targetIndex
+        _selectedAnswerIndex.value = targetSnapshot.selectedIndex
+        _isAnswerSubmitted.value = targetSnapshot.isSolvedOrRevealed
+        _quizAttemptState.update { state ->
+            state.copy(
+                attemptedWrongIndices = targetSnapshot.attemptedWrongIndices,
+                isSolvedOrRevealed = targetSnapshot.isSolvedOrRevealed,
+                wasRevealedWithoutSolving = targetSnapshot.wasRevealedWithoutSolving,
+                activeGuidanceText = targetSnapshot.activeGuidanceText,
+                isGuidanceCorrect = targetSnapshot.isGuidanceCorrect,
+                hasRequestedPreHint = targetSnapshot.hasRequestedPreHint,
+                questionSnapshots = updatedSnapshots
+            )
+        }
+    }
+
+    fun previousQuizQuestion() {
+        val prevIndex = _currentQuizIndex.value - 1
+        if (prevIndex >= 0) {
+            jumpToQuizQuestion(prevIndex)
+        }
+    }
+
+    fun nextQuizQuestion() {
+        val nextIndex = _currentQuizIndex.value + 1
+        if (nextIndex < _quizQuestions.value.size) {
+            jumpToQuizQuestion(nextIndex)
         } else {
-            val currentAttempt = _quizAttemptState.value
-            val totalQuestions = _quizQuestions.value.size
-            val shouldRecord = !currentAttempt.hasRecordedResult && totalQuestions > 0
-            _quizAttemptState.update {
-                it.copy(
-                    isQuizFinished = true,
-                    hasRecordedResult = true
-                )
-            }
-            if (shouldRecord) {
-                val record = QuizResultRecord(
-                    subjectTitle = activeQuizSubjectTitle,
-                    topic = activeQuizTopic,
-                    quizTitle = _quizTitle.value,
-                    totalQuestions = totalQuestions,
-                    firstTryCorrectCount = currentAttempt.firstTryCorrectCount,
-                    guidedCorrectCount = currentAttempt.guidedCorrectCount,
-                    revealedCount = currentAttempt.revealedCount,
-                    totalWrongAttempts = currentAttempt.totalWrongAttempts,
-                    completedAt = System.currentTimeMillis()
-                )
-                viewModelScope.launch {
-                    try {
-                        quizProgressRepository.recordQuizResult(record)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to save quiz progress result to Room", e)
-                    }
+            finishQuizEarly()
+        }
+    }
+
+    fun finishQuizEarly() {
+        guidedHintJob?.cancel()
+        _guidedHintState.value = GuidedHintUiState.Idle
+
+        val qIdx = _currentQuizIndex.value
+        val currentAttempt = _quizAttemptState.value
+        val updatedSnapshots = if (qIdx in _quizQuestions.value.indices) {
+            currentAttempt.questionSnapshots + (qIdx to buildCurrentQuestionSnapshot())
+        } else {
+            currentAttempt.questionSnapshots
+        }
+
+        val totalQuestions = _quizQuestions.value.size
+        val shouldRecord = !currentAttempt.hasRecordedResult && totalQuestions > 0
+        _quizAttemptState.update {
+            it.copy(
+                isQuizFinished = true,
+                hasRecordedResult = true,
+                questionSnapshots = updatedSnapshots
+            )
+        }
+        if (shouldRecord) {
+            val record = QuizResultRecord(
+                subjectTitle = activeQuizSubjectTitle,
+                topic = activeQuizTopic,
+                quizTitle = _quizTitle.value,
+                totalQuestions = totalQuestions,
+                firstTryCorrectCount = currentAttempt.firstTryCorrectCount,
+                guidedCorrectCount = currentAttempt.guidedCorrectCount,
+                revealedCount = currentAttempt.revealedCount,
+                totalWrongAttempts = currentAttempt.totalWrongAttempts,
+                completedAt = System.currentTimeMillis()
+            )
+            viewModelScope.launch {
+                try {
+                    quizProgressRepository.recordQuizResult(record)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to save quiz progress result to Room", e)
                 }
             }
         }
@@ -1499,7 +1625,7 @@ class TutorViewModel(
         _currentQuizIndex.value = 0
         _selectedAnswerIndex.value = null
         _isAnswerSubmitted.value = false
-        _quizAttemptState.value = QuizAttemptUiState()
+        _quizAttemptState.value = QuizAttemptUiState(feedbackMode = _quizFeedbackMode.value)
     }
 
     fun loadSubjectQuiz(
