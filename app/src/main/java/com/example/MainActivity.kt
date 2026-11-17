@@ -2,6 +2,7 @@ package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -90,12 +91,14 @@ import com.example.data.local.AppThemeMode
 import com.example.model.QuizDifficulty
 import com.example.model.Subject
 import com.example.model.Textbook
+import com.example.ui.screens.ExamTipsScreen
 import com.example.ui.screens.ExamsResourcesScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.PdfReaderScreen
 import com.example.ui.screens.PomodoroTimerScreen
 import com.example.ui.screens.ProgressAssessmentScreen
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.StudentForumRoute
 import com.example.ui.screens.StudyNotesScreen
 import com.example.ui.screens.StudyScheduleScreen
 import com.example.ui.screens.StudyStatsScreen
@@ -109,6 +112,7 @@ import com.example.ui.theme.SudXGoldTint
 import com.example.ui.theme.SudXMidnightNavy
 import com.example.ui.theme.SudXRoyalNavy
 import com.example.ui.theme.SudXSapphireSlate
+import com.example.ui.theme.sudxIsDarkTheme
 import com.example.util.configureAppCheck
 import com.example.viewmodel.TutorViewModel
 
@@ -142,6 +146,27 @@ class MainActivity : ComponentActivity() {
                 AppThemeMode.SYSTEM -> isSystemInDarkTheme()
                 AppThemeMode.LIGHT -> false
                 AppThemeMode.DARK -> true
+            }
+
+            LaunchedEffect(isDarkTheme) {
+                enableEdgeToEdge(
+                    statusBarStyle = if (isDarkTheme) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT
+                        )
+                    },
+                    navigationBarStyle = if (isDarkTheme) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT
+                        )
+                    }
+                )
             }
 
             LaunchedEffect(Unit) {
@@ -179,13 +204,21 @@ fun SudanCertApp(
     var isViewingPomodoro by remember { mutableStateOf(false) }
     var isViewingStats by remember { mutableStateOf(false) }
     var isViewingProgress by remember { mutableStateOf(false) }
+    var isViewingForum by remember { mutableStateOf(false) }
+    var isViewingTeacherTips by remember { mutableStateOf(false) }
     var selectedPdfTextbook by remember { mutableStateOf<Textbook?>(null) }
     val studyNotes by viewModel.studyNotes.collectAsStateWithLifecycle()
     val currentStudent by viewModel.currentStudent.collectAsStateWithLifecycle()
+    val isSigningIn by viewModel.isSigningIn.collectAsStateWithLifecycle()
+    val authError by viewModel.authError.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val pomodoroState by viewModel.pomodoroState.collectAsStateWithLifecycle()
     val pomodoroSessions by viewModel.pomodoroSessions.collectAsStateWithLifecycle()
     val quizResults by viewModel.quizResults.collectAsStateWithLifecycle()
+    val teacherTips by viewModel.teacherTips.collectAsStateWithLifecycle()
+    val featuredTipIndex by viewModel.featuredTipIndex.collectAsStateWithLifecycle()
+    val teacherTipsRefreshState by viewModel.teacherTipsRefreshState.collectAsStateWithLifecycle()
+    val isDarkTheme = sudxIsDarkTheme()
     val context = LocalContext.current
 
     val fabGlowTransition = rememberInfiniteTransition(label = "fab_glow")
@@ -203,7 +236,7 @@ fun SudanCertApp(
         modifier = Modifier.fillMaxSize(),
         floatingActionButton = {
             // Prominent Floating Action Button (FAB) named 'المعلم الذكي' with SudX Obsidian & Champagne Gold glow
-            if (currentTab != NavigationTab.SMART_ASSISTANT && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro && !isViewingStats && !isViewingProgress) {
+            if (currentTab != NavigationTab.SMART_ASSISTANT && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro && !isViewingStats && !isViewingProgress && !isViewingForum && !isViewingTeacherTips) {
                 val fabShape = RoundedCornerShape(18.dp)
                 ExtendedFloatingActionButton(
                     onClick = {
@@ -216,6 +249,8 @@ fun SudanCertApp(
                         isViewingPomodoro = false
                         isViewingStats = false
                         isViewingProgress = false
+                        isViewingForum = false
+                        isViewingTeacherTips = false
                         currentTab = NavigationTab.SMART_ASSISTANT
                     },
                     containerColor = SudXMidnightNavy,
@@ -302,7 +337,7 @@ fun SudanCertApp(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     NavigationTab.entries.forEach { tab ->
-                        val isSelected = currentTab == tab && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro && !isViewingStats && !isViewingProgress
+                        val isSelected = currentTab == tab && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro && !isViewingStats && !isViewingProgress && !isViewingForum && !isViewingTeacherTips
                         val itemInteraction = remember { MutableInteractionSource() }
                         val isPressed by itemInteraction.collectIsPressedAsState()
                         val isHovered by itemInteraction.collectIsHoveredAsState()
@@ -381,6 +416,8 @@ fun SudanCertApp(
                                         isViewingPomodoro = false
                                         isViewingStats = false
                                         isViewingProgress = false
+                                        isViewingForum = false
+                                        isViewingTeacherTips = false
                                         currentTab = tab
                                     }
                                 )
@@ -577,10 +614,6 @@ fun SudanCertApp(
                     currentTab = NavigationTab.SMART_ASSISTANT
                     viewModel.sendMessage(prompt)
                 },
-                onOpenProgressAssessment = {
-                    isViewingPractice = false
-                    isViewingProgress = true
-                },
                 onBack = { isViewingPractice = false },
                 modifier = screenModifier
             )
@@ -617,6 +650,50 @@ fun SudanCertApp(
                     isViewingNotes = true
                 },
                 onBack = { isViewingSettings = false },
+                modifier = screenModifier
+            )
+        } else if (isViewingForum) {
+            StudentForumRoute(
+                academicStreamTitle = settings.academicStream.titleAr,
+                isSigningIn = isSigningIn,
+                authError = authError,
+                onGoogleSignIn = { viewModel.signInWithGoogle(context) },
+                onAskSmartTeacher = { prompt ->
+                    isViewingForum = false
+                    currentTab = NavigationTab.SMART_ASSISTANT
+                    viewModel.sendMessage(prompt)
+                },
+                onBack = { isViewingForum = false },
+                modifier = screenModifier
+            )
+        } else if (isViewingTeacherTips) {
+            ExamTipsScreen(
+                tips = teacherTips,
+                featuredTipIndex = featuredTipIndex,
+                refreshState = teacherTipsRefreshState,
+                academicStreamTitle = settings.academicStream.titleAr,
+                onRefreshTips = { category -> viewModel.refreshTeacherTips(category) },
+                onCycleFeaturedTip = { viewModel.cycleFeaturedTip() },
+                onDismissRefreshState = { viewModel.dismissTeacherTipsRefreshState() },
+                onSaveTipToNotes = { tip ->
+                    val stepsBlock = if (tip.actionSteps.isNotEmpty()) {
+                        "\n\nخطوات التطبيق:\n" + tip.actionSteps.mapIndexed { idx, step -> "${idx + 1}. $step" }.joinToString("\n")
+                    } else {
+                        ""
+                    }
+                    viewModel.saveStudyNote(
+                        title = tip.title,
+                        content = "${tip.content}$stepsBlock\n\nالقاعدة الذهبية: ${tip.importantRule}",
+                        subjectTitle = "نصائح المعلم • ${tip.category}",
+                        isPinned = true
+                    )
+                },
+                onAskTeacherForAdvice = { prompt ->
+                    isViewingTeacherTips = false
+                    currentTab = NavigationTab.SMART_ASSISTANT
+                    viewModel.sendMessage(prompt)
+                },
+                onBack = { isViewingTeacherTips = false },
                 modifier = screenModifier
             )
         } else {
@@ -663,8 +740,18 @@ fun SudanCertApp(
                         onNavigateToProgressAssessment = {
                             isViewingProgress = true
                         },
+                        onNavigateToForum = {
+                            isViewingForum = true
+                        },
+                        onNavigateToTeacherTips = {
+                            isViewingTeacherTips = true
+                        },
                         studentAccount = currentStudent,
                         academicStreamTitle = settings.academicStream.titleAr,
+                        isDarkTheme = isDarkTheme,
+                        onToggleNightMode = {
+                            viewModel.toggleNightMode(isDarkTheme)
+                        },
                         onNavigateToSettings = {
                             isViewingSettings = true
                         },
@@ -702,7 +789,7 @@ fun SudanCertApp(
                                     questions = exam.sampleQuestions,
                                     title = "نموذج امتحان ${exam.subjectTitle} (${exam.year})",
                                     subjectTitle = exam.subjectTitle,
-                                    topic = exam.title
+                                    topic = exam.session
                                 )
                                 isViewingPractice = true
                             }
@@ -718,12 +805,34 @@ fun SudanCertApp(
                             viewModel.openAiQuizConfigurator()
                             isViewingPractice = true
                         },
+                        teacherTips = teacherTips,
+                        featuredTipIndex = featuredTipIndex,
+                        teacherTipsRefreshState = teacherTipsRefreshState,
+                        academicStreamTitle = settings.academicStream.titleAr,
+                        onRefreshTeacherTips = { category -> viewModel.refreshTeacherTips(category) },
+                        onCycleFeaturedTip = { viewModel.cycleFeaturedTip() },
+                        onDismissTeacherTipsRefreshState = { viewModel.dismissTeacherTipsRefreshState() },
+                        onSaveTipToNotes = { tip ->
+                            val stepsBlock = if (tip.actionSteps.isNotEmpty()) {
+                                "\n\nخطوات التطبيق:\n" + tip.actionSteps.mapIndexed { idx, step -> "${idx + 1}. $step" }.joinToString("\n")
+                            } else {
+                                ""
+                            }
+                            viewModel.saveStudyNote(
+                                title = tip.title,
+                                content = "${tip.content}$stepsBlock\n\nالقاعدة الذهبية: ${tip.importantRule}",
+                                subjectTitle = "نصائح المعلم • ${tip.category}",
+                                isPinned = true
+                            )
+                        },
                         modifier = screenModifier
                     )
                 }
                 NavigationTab.SMART_ASSISTANT -> {
                     TutorChatScreen(
                         viewModel = viewModel,
+                        isDarkTheme = isDarkTheme,
+                        onToggleNightMode = { viewModel.toggleNightMode(isDarkTheme) },
                         onOpenNotes = { isViewingNotes = true },
                         onOpenSettings = { isViewingSettings = true },
                         modifier = screenModifier

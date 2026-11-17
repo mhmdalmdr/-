@@ -28,9 +28,12 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Quiz
@@ -39,6 +42,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.TipsAndUpdates
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -92,6 +96,14 @@ import com.example.ui.theme.SudXNavySoft
 import com.example.ui.theme.SudXRoyalNavy
 import com.example.ui.theme.SudXSapphireSlate
 import com.example.ui.theme.SudXSoftGold
+import com.example.ui.theme.sudxEmeraldFg
+import com.example.ui.theme.sudxEmeraldSoftBg
+import com.example.ui.theme.sudxGoldBorder
+import com.example.ui.theme.sudxGoldFg
+import com.example.ui.theme.sudxGoldTintBg
+import com.example.ui.theme.sudxIsDarkTheme
+import com.example.ui.theme.sudxNavyFg
+import com.example.ui.theme.sudxNavySoftBg
 import com.example.util.StudentAccount
 
 @Composable
@@ -108,8 +120,16 @@ fun HomeScreen(
     loggedStudyMinutes: Int = 0,
     onNavigateToStats: () -> Unit = {},
     onNavigateToAiQuiz: () -> Unit = {},
+    quizResultsCount: Int = 0,
+    quizMasteryPercent: Int = 0,
+    weakTopicsCount: Int = 0,
+    onNavigateToProgressAssessment: () -> Unit = {},
+    onNavigateToForum: () -> Unit = {},
+    onNavigateToTeacherTips: () -> Unit = {},
     studentAccount: StudentAccount? = null,
     academicStreamTitle: String = "القسم العلمي",
+    isDarkTheme: Boolean = false,
+    onToggleNightMode: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onGoogleSignIn: () -> Unit = {},
     onOpenMahdiyaLesson: () -> Unit,
@@ -220,6 +240,43 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                // 1-tap Night Mode Toggle Pill
+                                Surface(
+                                    onClick = onToggleNightMode,
+                                    shape = RoundedCornerShape(50),
+                                    color = if (isDarkTheme) {
+                                        SudXChampagneGold.copy(alpha = 0.22f)
+                                    } else {
+                                        SudXGoldTint.copy(alpha = 0.14f)
+                                    },
+                                    border = BorderStroke(
+                                        1.dp,
+                                        SudXChampagneGold.copy(alpha = if (isDarkTheme) 0.85f else 0.55f)
+                                    ),
+                                    modifier = Modifier
+                                        .minimumInteractiveComponentSize()
+                                        .testTag("home_night_mode_toggle")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                            contentDescription = if (isDarkTheme) "التبديل إلى الوضع النهاري" else "التبديل إلى الوضع الليلي",
+                                            tint = SudXChampagneGold,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = if (isDarkTheme) "نهاري" else "الوضع الليلي",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = SudXGoldTint,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
                                 IconButton(
                                     onClick = onNavigateToSettings,
                                     modifier = Modifier
@@ -376,14 +433,14 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .size(46.dp)
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(SudXNavySoft)
-                                    .border(1.dp, SudXRoyalNavy.copy(alpha = 0.16f), RoundedCornerShape(14.dp)),
+                                    .background(sudxNavySoftBg())
+                                    .border(1.dp, sudxNavyFg().copy(alpha = 0.22f), RoundedCornerShape(14.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.MenuBook,
                                     contentDescription = "الكتب المدرسية",
-                                    tint = SudXRoyalNavy,
+                                    tint = sudxNavyFg(),
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -421,14 +478,14 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .size(46.dp)
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(SudXGoldTint)
-                                    .border(1.dp, SudXGoldBorder, RoundedCornerShape(14.dp)),
+                                    .background(sudxGoldTintBg())
+                                    .border(1.dp, sudxGoldBorder(), RoundedCornerShape(14.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Quiz,
                                     contentDescription = "امتحانات 2026 الجديدة",
-                                    tint = SudXBronzeGold,
+                                    tint = sudxGoldFg(),
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -471,14 +528,14 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(52.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(SudXEmeraldSoft)
-                            .border(1.dp, SudXEmerald.copy(alpha = 0.28f), RoundedCornerShape(16.dp)),
+                            .background(sudxEmeraldSoftBg())
+                            .border(1.dp, SudXEmerald.copy(alpha = 0.35f), RoundedCornerShape(16.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.CalendarMonth,
                             contentDescription = "جدول المذاكرة",
-                            tint = SudXEmeraldDark,
+                            tint = sudxEmeraldFg(),
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -495,22 +552,22 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(SudXGoldTint)
-                                    .border(0.8.dp, SudXGoldBorder, RoundedCornerShape(8.dp))
+                                    .background(sudxGoldTintBg())
+                                    .border(0.8.dp, sudxGoldBorder(), RoundedCornerShape(8.dp))
                                     .padding(horizontal = 7.dp, vertical = 2.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         imageVector = Icons.Default.Alarm,
                                         contentDescription = null,
-                                        tint = SudXBronzeGold,
+                                        tint = sudxGoldFg(),
                                         modifier = Modifier.size(12.dp)
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
                                         text = "تنبيهات مخصصة",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = SudXBronzeGold,
+                                        color = sudxGoldFg(),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 10.sp
                                     )
@@ -528,7 +585,7 @@ fun HomeScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "فتح الجدول",
-                        tint = SudXEmeraldDark,
+                        tint = sudxEmeraldFg(),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -561,14 +618,14 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(52.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(SudXGoldTint)
-                            .border(1.dp, SudXGoldBorder, RoundedCornerShape(16.dp)),
+                            .background(sudxGoldTintBg())
+                            .border(1.dp, sudxGoldBorder(), RoundedCornerShape(16.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.EditNote,
                             contentDescription = "ملاحظاتي التعليمية",
-                            tint = SudXBronzeGold,
+                            tint = sudxGoldFg(),
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -585,14 +642,14 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(SudXNavySoft)
-                                    .border(0.8.dp, SudXRoyalNavy.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    .background(sudxNavySoftBg())
+                                    .border(0.8.dp, sudxNavyFg().copy(alpha = 0.22f), RoundedCornerShape(8.dp))
                                     .padding(horizontal = 7.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = notesBadgeLabel,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = SudXRoyalNavy,
+                                    color = sudxNavyFg(),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp
                                 )
@@ -609,7 +666,7 @@ fun HomeScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "عرض الملاحظات",
-                        tint = SudXBronzeGold,
+                        tint = sudxGoldFg(),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -668,10 +725,10 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (pomodoroState.isRunning) SudXEmeraldSoft else SudXGoldTint)
+                                    .background(if (pomodoroState.isRunning) sudxEmeraldSoftBg() else sudxGoldTintBg())
                                     .border(
                                         0.8.dp,
-                                        if (pomodoroState.isRunning) SudXEmerald.copy(alpha = 0.6f) else SudXGoldBorder,
+                                        if (pomodoroState.isRunning) SudXEmerald.copy(alpha = 0.6f) else sudxGoldBorder(),
                                         RoundedCornerShape(8.dp)
                                     )
                                     .padding(horizontal = 7.dp, vertical = 2.dp)
@@ -679,7 +736,7 @@ fun HomeScreen(
                                 Text(
                                     text = pomodoroBadgeText,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (pomodoroState.isRunning) SudXEmeraldDark else SudXBronzeGold,
+                                    color = if (pomodoroState.isRunning) sudxEmeraldFg() else sudxGoldFg(),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp
                                 )
@@ -700,7 +757,7 @@ fun HomeScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "فتح مؤقت بومودورو",
-                        tint = SudXBronzeGold,
+                        tint = sudxGoldFg(),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -733,14 +790,14 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(52.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(SudXNavySoft)
-                            .border(1.dp, SudXRoyalNavy.copy(alpha = 0.22f), RoundedCornerShape(16.dp)),
+                            .background(sudxNavySoftBg())
+                            .border(1.dp, sudxNavyFg().copy(alpha = 0.25f), RoundedCornerShape(16.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.BarChart,
                             contentDescription = "إحصائيات المذاكرة",
-                            tint = SudXRoyalNavy,
+                            tint = sudxNavyFg(),
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -757,14 +814,14 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(SudXGoldTint)
-                                    .border(0.8.dp, SudXGoldBorder, RoundedCornerShape(8.dp))
+                                    .background(sudxGoldTintBg())
+                                    .border(0.8.dp, sudxGoldBorder(), RoundedCornerShape(8.dp))
                                     .padding(horizontal = 7.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = hoursBadge,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = SudXBronzeGold,
+                                    color = sudxGoldFg(),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp
                                 )
@@ -781,7 +838,7 @@ fun HomeScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "عرض إحصائيات المذاكرة",
-                        tint = SudXRoyalNavy,
+                        tint = sudxNavyFg(),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -793,8 +850,8 @@ fun HomeScreen(
             PremiumInteractiveCard(
                 onClick = onNavigateToAiQuiz,
                 cornerRadius = 22.dp,
-                containerColor = SudXGoldTint,
-                borderColor = SudXGoldBorder,
+                containerColor = sudxGoldTintBg(),
+                borderColor = sudxGoldBorder(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
@@ -828,7 +885,7 @@ fun HomeScreen(
                                 text = "مولّد الاختبارات الذكي (AI)",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = SudXMidnightNavy
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Box(
@@ -850,16 +907,230 @@ fun HomeScreen(
                         Text(
                             text = "اختر المادة والموضوع، وتدرّب على أسئلة اختيار من متعدد تقودك للحل بتلميحات ذكية",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF334155),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 19.sp
                         )
                     }
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "فتح مولّد الاختبارات الذكي",
-                        tint = SudXBronzeGold,
+                        tint = sudxGoldFg(),
                         modifier = Modifier.size(20.dp)
                     )
+                }
+            }
+        }
+
+        // 3.95 Collaborative Student Forum Card (AI-Supervised)
+        item {
+            PremiumInteractiveCard(
+                onClick = onNavigateToForum,
+                cornerRadius = 22.dp,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = SudXChampagneGold.copy(alpha = 0.65f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .testTag("home_student_forum_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(SudXMidnightNavy)
+                            .border(1.2.dp, SudXChampagneGold, RoundedCornerShape(16.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Forum,
+                            contentDescription = "المنتدى الطلابي",
+                            tint = SudXChampagneGold,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "المنتدى الطلابي",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(sudxGoldTintBg())
+                                    .border(0.8.dp, sudxGoldBorder(), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "إشراف ذكي",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sudxGoldFg(),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "شارك استفساراتك وساعد زملاءك في حل المسائل الدراسية تحت إشراف المعلم الذكي",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 19.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "فتح المنتدى الطلابي",
+                        tint = sudxGoldFg(),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        // 3.96 Renewable Teacher's Tips Card
+        item {
+            PremiumInteractiveCard(
+                onClick = onNavigateToTeacherTips,
+                cornerRadius = 22.dp,
+                containerColor = sudxGoldTintBg(),
+                borderColor = sudxGoldBorder(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .testTag("home_teacher_tips_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(SudXRoyalNavy)
+                            .border(1.2.dp, SudXChampagneGold.copy(alpha = 0.78f), RoundedCornerShape(16.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.TipsAndUpdates,
+                            contentDescription = "نصائح المعلم المتجددة",
+                            tint = SudXChampagneGold,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "نصائح المعلم المتجددة",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(SudXRoyalNavy)
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "متجددة بالـ AI",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = SudXChampagneGold,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "توجيهات عملية للتعامل مع قلق الاختبارات واستراتيجيات مذاكرة المواد العلمية والأدبية",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 19.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "فتح نصائح المعلم",
+                        tint = sudxGoldFg(),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        // 3.98 Progress Assessment Card
+        if (quizResultsCount > 0 || weakTopicsCount > 0) {
+            item {
+                PremiumInteractiveCard(
+                    onClick = onNavigateToProgressAssessment,
+                    cornerRadius = 22.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .testTag("home_progress_assessment_card")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(sudxEmeraldSoftBg())
+                                .border(1.dp, SudXEmerald.copy(alpha = 0.35f), RoundedCornerShape(14.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VerifiedUser,
+                                contentDescription = "تقييم التقدم الأكاديمي",
+                                tint = sudxEmeraldFg(),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "تقييم التقدم الأكاديمي ($quizMasteryPercent%)",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (weakTopicsCount > 0) {
+                                    "لديك $weakTopicsCount موضوعات مقترحة للمراجعة المركزة"
+                                } else {
+                                    "أتممت $quizResultsCount اختبارات بنجاح • استمر في التفوق"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "عرض التقييم",
+                            tint = sudxEmeraldFg(),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -938,8 +1209,8 @@ fun HomeScreen(
             PremiumInteractiveCard(
                 onClick = onOpenMahdiyaLesson,
                 cornerRadius = 20.dp,
-                containerColor = SudXGoldTint,
-                borderColor = SudXGoldBorder,
+                containerColor = sudxGoldTintBg(),
+                borderColor = sudxGoldBorder(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
@@ -972,19 +1243,19 @@ fun HomeScreen(
                             text = "درس مراجعة مميز: أسباب الثورة المهدية",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = SudXMidnightNavy
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "ملخص الـ 4 أسباب والسبب المباشر مع أسئلة الامتحان",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF475569)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = null,
-                        tint = SudXBronzeGold,
+                        tint = sudxGoldFg(),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -1027,6 +1298,18 @@ fun SubjectGridItem(
         else -> SubjectHistoryFg
     }
 
+    val isDark = sudxIsDarkTheme()
+    val effectiveBgColor = if (isDark) iconColor.copy(alpha = 0.22f) else iconBgColor
+    val effectiveIconTint = if (isDark) {
+        if (subject.id == "history" || subject.id !in listOf("math", "physics", "chemistry", "arabic", "english")) {
+            SudXSoftGold
+        } else {
+            iconBgColor
+        }
+    } else {
+        iconColor
+    }
+
     PremiumInteractiveCard(
         onClick = onClick,
         cornerRadius = 20.dp,
@@ -1046,10 +1329,10 @@ fun SubjectGridItem(
                     modifier = Modifier
                         .size(46.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(iconBgColor)
+                        .background(effectiveBgColor)
                         .border(
                             width = 1.dp,
-                            color = iconColor.copy(alpha = 0.20f),
+                            color = effectiveIconTint.copy(alpha = 0.28f),
                             shape = RoundedCornerShape(14.dp)
                         ),
                     contentAlignment = Alignment.Center
@@ -1057,7 +1340,7 @@ fun SubjectGridItem(
                     Icon(
                         imageVector = icon,
                         contentDescription = subject.title,
-                        tint = iconColor,
+                        tint = effectiveIconTint,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -1065,8 +1348,8 @@ fun SubjectGridItem(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(SudXNavySoft)
-                        .border(0.8.dp, SudXRoyalNavy.copy(alpha = 0.12f), RoundedCornerShape(50))
+                        .background(sudxNavySoftBg())
+                        .border(0.8.dp, sudxNavyFg().copy(alpha = 0.18f), RoundedCornerShape(50))
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     val unitsLabel = when (subject.unitsCount) {
@@ -1077,7 +1360,7 @@ fun SubjectGridItem(
                     Text(
                         text = unitsLabel,
                         style = MaterialTheme.typography.labelSmall,
-                        color = SudXRoyalNavy,
+                        color = sudxNavyFg(),
                         fontWeight = FontWeight.Bold
                     )
                 }

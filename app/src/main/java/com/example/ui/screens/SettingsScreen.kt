@@ -96,6 +96,15 @@ import com.example.ui.theme.SudXMidnightNavy
 import com.example.ui.theme.SudXNavySoft
 import com.example.ui.theme.SudXRoyalNavy
 import com.example.ui.theme.SudXSoftGold
+import com.example.ui.theme.sudxCrimsonFg
+import com.example.ui.theme.sudxCrimsonSoftBg
+import com.example.ui.theme.sudxEmeraldFg
+import com.example.ui.theme.sudxEmeraldSoftBg
+import com.example.ui.theme.sudxGoldFg
+import com.example.ui.theme.sudxGoldTintBg
+import com.example.ui.theme.sudxIsDarkTheme
+import com.example.ui.theme.sudxNavyFg
+import com.example.ui.theme.sudxNavySoftBg
 import com.example.util.StudentAccount
 import com.example.viewmodel.TutorViewModel
 
@@ -279,63 +288,90 @@ fun SettingsScreen(
                     }
                 }
 
-                // 3. Appearance & Theme
+                // 3. Appearance & Night Mode
                 item {
+                    val isDarkActive = sudxIsDarkTheme()
                     SettingsSectionTitle(
-                        title = "مظهر التطبيق",
-                        subtitle = "اختر المظهر الأنسب لمذاكرتك نهاراً أو ليلاً"
+                        title = "الوضع الليلي ومظهر التطبيق",
+                        subtitle = "بدّل إلى الوضع الليلي لتسهيل المذاكرة في الأوقات المتأخرة وتقليل إجهاد العين"
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     PremiumSurfaceCard(cornerRadius = 20.dp) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            AppThemeMode.entries.forEach { mode ->
-                                val isSelected = settings.themeMode == mode
-                                val icon = when (mode) {
-                                    AppThemeMode.SYSTEM -> Icons.Default.PhoneAndroid
-                                    AppThemeMode.LIGHT -> Icons.Default.LightMode
-                                    AppThemeMode.DARK -> Icons.Default.DarkMode
-                                }
-                                val tag = when (mode) {
-                                    AppThemeMode.SYSTEM -> "theme_mode_system"
-                                    AppThemeMode.LIGHT -> "theme_mode_light"
-                                    AppThemeMode.DARK -> "theme_mode_dark"
-                                }
-                                Surface(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .clickable { viewModel.updateThemeMode(mode) }
-                                        .minimumInteractiveComponentSize()
-                                        .testTag(tag),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = if (isSelected) SudXRoyalNavy else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
-                                    border = BorderStroke(
-                                        width = 1.dp,
-                                        color = if (isSelected) SudXChampagneGold else Color.Transparent
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SettingsSwitchRow(
+                                icon = Icons.Default.DarkMode,
+                                iconTint = sudxGoldFg(),
+                                iconBg = sudxGoldTintBg(),
+                                title = "تفعيل الوضع الليلي للمذاكرة",
+                                subtitle = if (isDarkActive) {
+                                    "الوضع الليلي مفعّل الآن • ألوان داكنة مريحة للعين"
+                                } else {
+                                    "واجهة داكنة تقلل سطوع الشاشة وإجهاد العين ليلاً"
+                                },
+                                checked = isDarkActive,
+                                onCheckedChange = { enabled ->
+                                    viewModel.updateThemeMode(
+                                        if (enabled) AppThemeMode.DARK else AppThemeMode.LIGHT
                                     )
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally
+                                },
+                                testTag = "settings_night_mode_switch"
+                            )
+
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AppThemeMode.entries.forEach { mode ->
+                                    val isSelected = settings.themeMode == mode
+                                    val icon = when (mode) {
+                                        AppThemeMode.SYSTEM -> Icons.Default.PhoneAndroid
+                                        AppThemeMode.LIGHT -> Icons.Default.LightMode
+                                        AppThemeMode.DARK -> Icons.Default.DarkMode
+                                    }
+                                    val tag = when (mode) {
+                                        AppThemeMode.SYSTEM -> "theme_mode_system"
+                                        AppThemeMode.LIGHT -> "theme_mode_light"
+                                        AppThemeMode.DARK -> "theme_mode_dark"
+                                    }
+                                    Surface(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .clickable { viewModel.updateThemeMode(mode) }
+                                            .minimumInteractiveComponentSize()
+                                            .testTag(tag),
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = if (isSelected) SudXRoyalNavy else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                                        border = BorderStroke(
+                                            width = 1.dp,
+                                            color = if (isSelected) SudXChampagneGold else Color.Transparent
+                                        )
                                     ) {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = mode.titleAr,
-                                            tint = if (isSelected) SudXChampagneGold else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = mode.titleAr,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            color = if (isSelected) SudXGoldTint else MaterialTheme.colorScheme.onSurface
-                                        )
+                                        Column(
+                                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(
+                                                imageVector = icon,
+                                                contentDescription = mode.titleAr,
+                                                tint = if (isSelected) SudXChampagneGold else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = mode.titleAr,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isSelected) SudXGoldTint else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -354,8 +390,8 @@ fun SettingsScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             SettingsSwitchRow(
                                 icon = Icons.Default.Public,
-                                iconTint = SudXEmeraldDark,
-                                iconBg = SudXEmeraldSoft,
+                                iconTint = sudxEmeraldFg(),
+                                iconBg = sudxEmeraldSoftBg(),
                                 title = "تفعيل بحث Google للمصادر",
                                 subtitle = "استخدام مصادر البحث الموثوقة لدعم شروحات المنهج",
                                 checked = settings.searchGroundingDefault,
@@ -377,7 +413,7 @@ fun SettingsScreen(
                                     Icon(
                                         imageVector = Icons.Default.SmartToy,
                                         contentDescription = null,
-                                        tint = SudXRoyalNavy,
+                                        tint = sudxNavyFg(),
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -400,7 +436,7 @@ fun SettingsScreen(
                                                 .minimumInteractiveComponentSize()
                                                 .testTag("default_role_${role.name.lowercase()}"),
                                             shape = RoundedCornerShape(14.dp),
-                                            color = if (isSelected) SudXGoldTint else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            color = if (isSelected) sudxGoldTintBg() else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                             border = BorderStroke(
                                                 width = 1.dp,
                                                 color = if (isSelected) SudXChampagneGold else MaterialTheme.colorScheme.outlineVariant
@@ -417,19 +453,19 @@ fun SettingsScreen(
                                                         text = role.titleAr,
                                                         style = MaterialTheme.typography.labelLarge,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = if (isSelected) SudXMidnightNavy else MaterialTheme.colorScheme.onSurface
+                                                        color = MaterialTheme.colorScheme.onSurface
                                                     )
                                                     Text(
                                                         text = role.descriptionAr,
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = if (isSelected) Color(0xFF475569) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
                                                 if (isSelected) {
                                                     Icon(
                                                         imageVector = Icons.Default.CheckCircle,
                                                         contentDescription = "مختار",
-                                                        tint = SudXBronzeGold,
+                                                        tint = sudxGoldFg(),
                                                         modifier = Modifier.size(20.dp)
                                                     )
                                                 }
@@ -453,8 +489,8 @@ fun SettingsScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             SettingsSwitchRow(
                                 icon = Icons.Default.NotificationsActive,
-                                iconTint = SudXBronzeGold,
-                                iconBg = SudXGoldTint,
+                                iconTint = sudxGoldFg(),
+                                iconBg = sudxGoldTintBg(),
                                 title = "تذكيرات جدول المذاكرة",
                                 subtitle = "تفعيل أو إيقاف إشعارات جلسات المذاكرة المجدولة",
                                 checked = settings.studyRemindersEnabled,
@@ -469,8 +505,8 @@ fun SettingsScreen(
 
                             SettingsActionRow(
                                 icon = Icons.Default.CalendarMonth,
-                                iconTint = SudXEmeraldDark,
-                                iconBg = SudXEmeraldSoft,
+                                iconTint = sudxEmeraldFg(),
+                                iconBg = sudxEmeraldSoftBg(),
                                 title = "جدول المذاكرة الأسبوعي",
                                 subtitle = "عرض وتعديل حصص المذاكرة اليومية",
                                 onClick = onNavigateToSchedule,
@@ -484,8 +520,8 @@ fun SettingsScreen(
 
                             SettingsActionRow(
                                 icon = Icons.Default.EditNote,
-                                iconTint = SudXRoyalNavy,
-                                iconBg = SudXNavySoft,
+                                iconTint = sudxNavyFg(),
+                                iconBg = sudxNavySoftBg(),
                                 title = "ملاحظاتي التعليمية ($notesCount)",
                                 subtitle = "مراجعة الملاحظات المحفوظة في قاعدة بيانات Room",
                                 onClick = onNavigateToNotes,
@@ -499,8 +535,8 @@ fun SettingsScreen(
 
                             SettingsActionRow(
                                 icon = Icons.Default.DeleteSweep,
-                                iconTint = SudXCrimson,
-                                iconBg = SudXCrimsonSoft,
+                                iconTint = sudxCrimsonFg(),
+                                iconBg = sudxCrimsonSoftBg(),
                                 title = "مسح سجل محادثات المعلم الذكي",
                                 subtitle = "إزالة الرسائل السابقة والبدء بصفحة جديدة",
                                 onClick = { showClearChatDialog = true },

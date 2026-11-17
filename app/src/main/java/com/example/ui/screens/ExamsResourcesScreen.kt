@@ -57,7 +57,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CurriculumData
 import com.example.model.BookTrack
+import com.example.model.ExamTip
 import com.example.model.PastExam
+import com.example.model.TeacherTipCategory
+import com.example.model.TeacherTipsRefreshState
 import com.example.model.Textbook
 import com.example.ui.components.PremiumActionButton
 import com.example.ui.components.PremiumOutlinedActionButton
@@ -83,6 +86,14 @@ fun ExamsResourcesScreen(
     onAskTeacherAboutExam: (String) -> Unit,
     onOpenPdfTextbook: (Textbook) -> Unit = {},
     onOpenAiQuizGenerator: () -> Unit = {},
+    teacherTips: List<ExamTip> = CurriculumData.examTips,
+    featuredTipIndex: Int = 0,
+    teacherTipsRefreshState: TeacherTipsRefreshState = TeacherTipsRefreshState.Idle,
+    academicStreamTitle: String = "القسم العلمي",
+    onRefreshTeacherTips: (TeacherTipCategory) -> Unit = {},
+    onCycleFeaturedTip: () -> Unit = {},
+    onDismissTeacherTipsRefreshState: () -> Unit = {},
+    onSaveTipToNotes: ((ExamTip) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
@@ -156,6 +167,14 @@ fun ExamsResourcesScreen(
                 onOpenPdfTextbook = onOpenPdfTextbook
             )
             2 -> ExamTipsScreen(
+                tips = teacherTips,
+                featuredTipIndex = featuredTipIndex,
+                refreshState = teacherTipsRefreshState,
+                academicStreamTitle = academicStreamTitle,
+                onRefreshTips = onRefreshTeacherTips,
+                onCycleFeaturedTip = onCycleFeaturedTip,
+                onDismissRefreshState = onDismissTeacherTipsRefreshState,
+                onSaveTipToNotes = onSaveTipToNotes,
                 onAskTeacherForAdvice = onAskTeacherAboutExam
             )
         }

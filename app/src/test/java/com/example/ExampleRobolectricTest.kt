@@ -432,7 +432,127 @@ class ExampleRobolectricTest {
       }
     }
   }
+
+  @Test
+  fun `forum ai supervisor parser parses post review and reply evaluation safely`() {
+    val postReviewJson = """
+      {
+        "reviewStatus": "GUIDED",
+        "keyConcept": "الحركة الدائرية المنتظمة",
+        "reviewNote": "تذكر أن اتجاه السرعة يتغير باستمرار نحو المركز مما ينتج تسارعاً مركزياً."
+      }
+    """.trimIndent()
+    val parsedPost = com.example.util.ForumAiSupervisorParser.parsePostReview(postReviewJson)
+    assertEquals(com.example.model.TeacherPostReviewStatus.GUIDED, parsedPost.reviewStatus)
+    assertEquals("الحركة الدائرية المنتظمة", parsedPost.keyConcept)
+    assertTrue(parsedPost.reviewNote.contains("الحركة الدائرية المنتظمة"))
+
+    val replyJsonVerified = """
+      {
+        "badge": "VERIFIED",
+        "feedback": "إجابة دقيقة ومنهجية، أحسنت في توضيح قانون العجلة المركزية."
+      }
+    """.trimIndent()
+    val parsedReply = com.example.util.ForumAiSupervisorParser.parseReplyEvaluation(replyJsonVerified)
+    assertEquals(com.example.model.TeacherReplyBadge.VERIFIED, parsedReply.badge)
+    assertTrue(parsedReply.feedback.contains("أحسنت"))
+
+    val replyJsonUnknownBadge = """
+      {
+        "badge": "UNKNOWN_BADGE",
+        "feedback": "تأكد من وحدة القياس في الخطوة الأخيرة."
+      }
+    """.trimIndent()
+    val parsedFallback = com.example.util.ForumAiSupervisorParser.parseReplyEvaluation(replyJsonUnknownBadge)
+    assertEquals(com.example.model.TeacherReplyBadge.NEEDS_HINT, parsedFallback.badge)
+  }
+
+  @Test
+  fun `forum models handle malformed wire enums gracefully without exceptions`() {
+    val post = com.example.model.ForumPost(
+      id = "p1",
+      status = "INVALID_STATUS",
+      teacherReviewStatus = "BOGUS"
+    )
+    assertEquals(com.example.model.ForumPostStatus.OPEN, post.parsedStatus)
+    assertEquals(com.example.model.TeacherPostReviewStatus.PENDING, post.parsedTeacherReviewStatus)
+
+    val reply = com.example.model.ForumReply(
+      id = "r1",
+      teacherBadge = "WEIRD_VALUE"
+    )
+    assertEquals(com.example.model.TeacherReplyBadge.NONE, reply.parsedTeacherBadge)
+  }
+
+  @Test
+  fun `tutor viewModel toggleNightMode switches and persists dark and light modes`() = runBlocking {
+    val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+    val repo = com.example.data.local.SettingsRepository(app)
+    repo.setThemeMode(com.example.data.local.AppThemeMode.LIGHT)
+
+    val vm = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(app)
+      .create(com.example.viewmodel.TutorViewModel::class.java)
+
+    vm.toggleNightMode(currentlyDark = false)
+    kotlinx.coroutines.delay(150L)
+    assertEquals(com.example.data.local.AppThemeMode.DARK, repo.settings.first().themeMode)
+
+    vm.toggleNightMode(currentlyDark = true)
+    kotlinx.coroutines.delay(150L)
+    assertEquals(com.example.data.local.AppThemeMode.LIGHT, repo.settings.first().themeMode)
+    assertEquals("الوضع الليلي", com.example.data.local.AppThemeMode.DARK.titleAr)
+  }
+
+  @Test
+  fun `curriculum exam tips cover exam anxiety and science study strategies with action steps`() {
+    val tips = CurriculumData.examTips
+    assertTrue(tips.size >= 8)
+    assertTrue(tips.any { it.category == com.example.model.TeacherTipCategory.EXAM_ANXIETY.titleAr })
+    assertTrue(tips.any { it.category == com.example.model.TeacherTipCategory.SCIENCE_STRATEGIES.titleAr })
+    assertTrue(tips.any { it.category == com.example.model.TeacherTipCategory.LITERARY_STRATEGIES.titleAr })
+    tips.forEach { tip ->
+      assertTrue(tip.title.isNotBlank())
+      assertTrue(tip.importantRule.isNotBlank())
+      assertTrue(tip.actionSteps.isNotEmpty())
+    }
+  }
+
+  @Test
+  fun `teacher tips json parser parses renewable ai tips safely and normalizes categories`() {
+    val rawJson = """
+      ```json
+      {
+        "tips": [
+          {
+            "title": "طريقة الفهم العميق لقوانين الحركة التوافقية",
+            "category": "المواد العلمية",
+            "content": "ارسم العلاقة بين الإزاحة والزمن واكتب وحدات القياس قبل حل أي مسألة في الفيزياء.",
+            "importantRule": "التحويل للنظام الدولي خطوة إلزامية قبل التعويض.",
+            "actionSteps": [
+              "اكتب المعطيات في الهامش مع الوحدات.",
+              "تأكد من اتجاه التسارع والإزاحة."
+            ],
+            "streamTag": "القسم العلمي"
+          },
+          {
+            "title": "تهدئة التوتر قبل دخول قاعة الامتحان",
+            "category": "الدعم النفسي والقلق",
+            "content": "تجنب النقاشات السريعة مع الزملاء وطبّق التنفس العميق لاستعادة تركيزك.",
+            "importantRule": "الهدوء الذهني يضاعف سرعة استرجاع المعلومات.",
+            "actionSteps": [
+              "تنفس ببطء 3 مرات."
+            ]
+          }
+        ]
+      }
+      ```
+    """.trimIndent()
+
+    val parsed = com.example.util.TeacherTipsJsonParser.parse(rawJson)
+    assertEquals(2, parsed.size)
+    assertEquals(com.example.model.TeacherTipCategory.SCIENCE_STRATEGIES.titleAr, parsed[0].category)
+    assertTrue(parsed[0].isAiGenerated)
+    assertEquals(2, parsed[0].actionSteps.size)
+    assertEquals(com.example.model.TeacherTipCategory.EXAM_ANXIETY.titleAr, parsed[1].category)
+  }
 }
-
-
-

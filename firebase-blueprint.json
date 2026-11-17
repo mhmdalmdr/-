@@ -1,0 +1,165 @@
+{
+  "entities": {
+    "ForumPost": {
+      "title": "ForumPost",
+      "description": "A student study inquiry posted in the collaborative Student Forum under AI Teacher supervision.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the student author."
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Public display name of the student author (no email or private PII)."
+        },
+        "authorTrack": {
+          "type": "string",
+          "description": "Academic stream of the student (Science, Arts, or General)."
+        },
+        "subjectTitle": {
+          "type": "string",
+          "description": "Sudanese Secondary Certificate subject title."
+        },
+        "title": {
+          "type": "string",
+          "description": "Concise title of the study inquiry."
+        },
+        "body": {
+          "type": "string",
+          "description": "Detailed description of the problem or question."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["OPEN", "SOLVED"],
+          "description": "Current resolution state of the forum inquiry."
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["PUBLIC"],
+          "description": "Visibility scope of forum inquiry for authenticated students."
+        },
+        "repliesCount": {
+          "type": "integer",
+          "description": "Number of peer replies on this inquiry."
+        },
+        "helpfulCount": {
+          "type": "integer",
+          "description": "Number of helpful endorsements on this inquiry."
+        },
+        "teacherReviewStatus": {
+          "type": "string",
+          "enum": ["PENDING", "APPROVED", "GUIDED"],
+          "description": "AI Teacher smart supervision status on the inquiry."
+        },
+        "teacherReviewNote": {
+          "type": "string",
+          "description": "AI Teacher Socratic supervision note guiding students without giving away raw spoilers."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the inquiry was created (clients must write FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last update (clients must write FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "authorName",
+        "authorTrack",
+        "subjectTitle",
+        "title",
+        "body",
+        "status",
+        "visibility",
+        "repliesCount",
+        "helpfulCount",
+        "teacherReviewStatus",
+        "teacherReviewNote",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ForumReply": {
+      "title": "ForumReply",
+      "description": "A peer answer or follow-up comment in a Student Forum thread, audited by the AI Teacher.",
+      "type": "object",
+      "properties": {
+        "postId": {
+          "type": "string",
+          "description": "Parent ForumPost document ID."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the replying student."
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Public display name of the replying student."
+        },
+        "body": {
+          "type": "string",
+          "description": "Peer explanation or study help content."
+        },
+        "postVisibility": {
+          "type": "string",
+          "enum": ["PUBLIC"],
+          "description": "Denormalized visibility matching parent post for query rule enforcement."
+        },
+        "teacherBadge": {
+          "type": "string",
+          "enum": ["NONE", "VERIFIED", "NEEDS_HINT", "CONTAINS_ERROR"],
+          "description": "AI Teacher supervision badge evaluating peer accuracy."
+        },
+        "teacherFeedback": {
+          "type": "string",
+          "description": "AI Teacher supervision feedback validating or guiding the peer explanation."
+        },
+        "markedHelpfulByAuthor": {
+          "type": "boolean",
+          "description": "Whether the original question author marked this peer reply as helpful."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the reply was created (clients must write FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last update (clients must write FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "postId",
+        "userId",
+        "authorName",
+        "body",
+        "postVisibility",
+        "teacherBadge",
+        "teacherFeedback",
+        "markedHelpfulByAuthor",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/forum_posts/{postId}": {
+      "schema": {
+        "$ref": "#/entities/ForumPost"
+      },
+      "description": "Shared Student Forum inquiries moderated by AI Teacher supervision."
+    },
+    "/forum_posts/{postId}/replies/{replyId}": {
+      "schema": {
+        "$ref": "#/entities/ForumReply"
+      },
+      "description": "Peer replies and AI Teacher supervision feedback on a Student Forum inquiry."
+    }
+  }
+}

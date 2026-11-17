@@ -132,8 +132,27 @@ data class ExamTip(
     val title: String,
     val category: String,
     val content: String,
-    val importantRule: String
+    val importantRule: String,
+    val actionSteps: List<String> = emptyList(),
+    val isAiGenerated: Boolean = false,
+    val streamTag: String = "عام"
 )
+
+enum class TeacherTipCategory(val titleAr: String, val tag: String) {
+    ALL("الكل", "all"),
+    EXAM_ANXIETY("قلق الاختبارات", "anxiety"),
+    SCIENCE_STRATEGIES("المواد العلمية", "science"),
+    LITERARY_STRATEGIES("المواد الأدبية", "literary"),
+    TIME_MANAGEMENT("تنظيم الوقت", "time"),
+    EXAM_HALL("قاعة الامتحان", "hall")
+}
+
+sealed interface TeacherTipsRefreshState {
+    data object Idle : TeacherTipsRefreshState
+    data object Loading : TeacherTipsRefreshState
+    data class Success(val addedCount: Int, val categoryTitle: String) : TeacherTipsRefreshState
+    data class Error(val message: String) : TeacherTipsRefreshState
+}
 
 data class Textbook(
     val id: String,

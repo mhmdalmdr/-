@@ -35,9 +35,11 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
@@ -101,6 +103,15 @@ import com.example.ui.theme.SudXObsidianVariant
 import com.example.ui.theme.SudXRoyalNavy
 import com.example.ui.theme.SudXSapphireSlate
 import com.example.ui.theme.SudXSoftGold
+import com.example.ui.theme.sudxCrimsonFg
+import com.example.ui.theme.sudxCrimsonSoftBg
+import com.example.ui.theme.sudxEmeraldFg
+import com.example.ui.theme.sudxEmeraldSoftBg
+import com.example.ui.theme.sudxGoldBorder
+import com.example.ui.theme.sudxGoldFg
+import com.example.ui.theme.sudxGoldTintBg
+import com.example.ui.theme.sudxNavyFg
+import com.example.ui.theme.sudxNavySoftBg
 import com.example.viewmodel.TutorUiState
 import com.example.viewmodel.TutorViewModel
 import java.text.SimpleDateFormat
@@ -125,6 +136,7 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.platform.LocalContext
 import com.example.model.TutorRole
@@ -132,6 +144,8 @@ import com.example.model.TutorRole
 @Composable
 fun TutorChatScreen(
     viewModel: TutorViewModel,
+    isDarkTheme: Boolean = false,
+    onToggleNightMode: () -> Unit = {},
     onOpenNotes: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -169,6 +183,7 @@ fun TutorChatScreen(
 
     var selectedSubjectTag by remember { mutableStateOf<String?>(null) }
     var isSearchHistoryVisible by remember { mutableStateOf(false) }
+    var isTopOptionsBarVisible by remember { mutableStateOf(false) }
     var historySearchQuery by remember { mutableStateOf("") }
     var noteDraftContent by remember { mutableStateOf<String?>(null) }
 
@@ -272,10 +287,12 @@ fun TutorChatScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "المعلم الذكي • الشهادة السودانية",
+                                    text = "المعلم الذكي",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = SudXGoldTint,
-                                    fontWeight = FontWeight.ExtraBold
+                                    fontWeight = FontWeight.ExtraBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Box(
@@ -286,58 +303,39 @@ fun TutorChatScreen(
                                 )
                             }
                             Text(
-                                text = "معلمك الخبير لطلاب الشهادة الثانوية السودانية",
+                                text = "معلمك الخبير للشهادة السودانية",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFE2E8F0)
+                                color = Color(0xFFE2E8F0),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
-                        // Open Saved Educational Notes
-                        if (onOpenNotes != null) {
-                            IconButton(
-                                onClick = onOpenNotes,
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .testTag("chat_open_notes_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.EditNote,
-                                    contentDescription = "ملاحظاتي التعليمية",
-                                    tint = SudXChampagneGold
-                                )
-                            }
-                        }
-
-                        // Toggle Search History in Local DB
+                        // Toggle Top Options Strip (hidden by default for clean chat space)
                         IconButton(
-                            onClick = {
-                                isSearchHistoryVisible = !isSearchHistoryVisible
-                                if (!isSearchHistoryVisible) {
-                                    historySearchQuery = ""
-                                }
-                            },
+                            onClick = { isTopOptionsBarVisible = !isTopOptionsBarVisible },
                             modifier = Modifier
-                                .size(42.dp)
-                                .testTag("search_history_toggle")
+                                .minimumInteractiveComponentSize()
+                                .testTag("chat_options_toggle")
                         ) {
                             Icon(
-                                imageVector = if (isSearchHistoryVisible) Icons.Default.Close else Icons.Default.Search,
-                                contentDescription = "البحث في الدروس المحفوظة",
-                                tint = SudXGoldTint
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = if (isTopOptionsBarVisible) "إخفاء شريط الخيارات" else "إظهار شريط الخيارات",
+                                tint = if (isTopOptionsBarVisible) SudXChampagneGold else SudXGoldTint
                             )
                         }
 
-                        // Reset / New Conversation Button
+                        // 1-tap Night Mode Toggle
                         IconButton(
-                            onClick = { viewModel.clearConversation() },
+                            onClick = onToggleNightMode,
                             modifier = Modifier
-                                .size(42.dp)
-                                .testTag("clear_chat_button")
+                                .minimumInteractiveComponentSize()
+                                .testTag("chat_night_mode_toggle")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "محادثة جديدة",
-                                tint = SudXGoldTint
+                                imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                contentDescription = if (isDarkTheme) "التبديل إلى الوضع النهاري" else "التبديل إلى الوضع الليلي",
+                                tint = SudXChampagneGold
                             )
                         }
 
@@ -358,57 +356,136 @@ fun TutorChatScreen(
                         }
                     }
 
-                    // Persistent Room Database Status Pill Bar
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.25f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                    // Collapsible Room Database, Quick Actions & Google Search Options Strip (hidden by default)
+                    AnimatedVisibility(visible = isTopOptionsBarVisible) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.25f),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Storage,
-                                    contentDescription = null,
-                                    tint = SudXChampagneGold,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "محادثة متعددة الجولات (Room • ${messages.size} رسالة)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = SudXGoldTint,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 11.sp
-                                )
-                            }
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Storage,
+                                            contentDescription = null,
+                                            tint = SudXChampagneGold,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "محادثة محفوظة (Room • ${messages.size} رسالة)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = SudXGoldTint,
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 11.sp
+                                        )
+                                    }
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "بحث Google",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = SudXGoldTint,
-                                    fontSize = 10.sp
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Switch(
-                                    checked = isSearchGroundingEnabled,
-                                    onCheckedChange = { viewModel.toggleSearchGrounding(it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = SudXMidnightNavy,
-                                        checkedTrackColor = SudXChampagneGold,
-                                        uncheckedThumbColor = Color(0xFFE2E8F0),
-                                        uncheckedTrackColor = Color(0xFF334155)
-                                    ),
-                                    modifier = Modifier.testTag("google_search_grounding_switch")
-                                )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "بحث Google",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = SudXGoldTint,
+                                            fontSize = 10.sp
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Switch(
+                                            checked = isSearchGroundingEnabled,
+                                            onCheckedChange = { viewModel.toggleSearchGrounding(it) },
+                                            colors = SwitchDefaults.colors(
+                                                checkedThumbColor = SudXMidnightNavy,
+                                                checkedTrackColor = SudXChampagneGold,
+                                                uncheckedThumbColor = Color(0xFFE2E8F0),
+                                                uncheckedTrackColor = Color(0xFF334155)
+                                            ),
+                                            modifier = Modifier.testTag("google_search_grounding_switch")
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (onOpenNotes != null) {
+                                        TextButton(
+                                            onClick = onOpenNotes,
+                                            modifier = Modifier
+                                                .minimumInteractiveComponentSize()
+                                                .testTag("chat_open_notes_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.EditNote,
+                                                contentDescription = null,
+                                                tint = SudXChampagneGold,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "ملاحظاتي",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = SudXGoldTint
+                                            )
+                                        }
+                                    }
+
+                                    TextButton(
+                                        onClick = {
+                                            isSearchHistoryVisible = !isSearchHistoryVisible
+                                            if (!isSearchHistoryVisible) {
+                                                historySearchQuery = ""
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .minimumInteractiveComponentSize()
+                                            .testTag("search_history_toggle")
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isSearchHistoryVisible) Icons.Default.Close else Icons.Default.Search,
+                                            contentDescription = null,
+                                            tint = SudXChampagneGold,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (isSearchHistoryVisible) "إغلاق البحث" else "بحث في السجل",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = SudXGoldTint
+                                        )
+                                    }
+
+                                    TextButton(
+                                        onClick = { viewModel.clearConversation() },
+                                        modifier = Modifier
+                                            .minimumInteractiveComponentSize()
+                                            .testTag("clear_chat_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            tint = SudXChampagneGold,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "محادثة جديدة",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = SudXGoldTint
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -494,17 +571,20 @@ fun TutorChatScreen(
             }
         }
 
-        // 2. Gemini Tutor Role Selector & Subject Quick Chips
-        Surface(
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
+        // 2. Gemini Tutor Role Selector & Subject Quick Chips (hidden by default)
+        AnimatedVisibility(visible = isTopOptionsBarVisible) {
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 1.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp)
+                    .testTag("chat_top_options_bar")
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                ) {
                 // Gemini Multi-Role Chatbot Selector
                 LazyRow(
                     modifier = Modifier
@@ -529,7 +609,7 @@ fun TutorChatScreen(
                                 Icon(
                                     imageVector = roleIcon,
                                     contentDescription = role.titleAr,
-                                    tint = if (isRoleSelected) SudXChampagneGold else SudXRoyalNavy,
+                                    tint = if (isRoleSelected) SudXChampagneGold else sudxGoldFg(),
                                     modifier = Modifier.size(16.dp)
                                 )
                             },
@@ -543,13 +623,13 @@ fun TutorChatScreen(
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = SudXMidnightNavy,
                                 selectedLabelColor = SudXGoldTint,
-                                containerColor = SudXGoldTint,
-                                labelColor = SudXMidnightNavy
+                                containerColor = sudxGoldTintBg(),
+                                labelColor = MaterialTheme.colorScheme.onSurface
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isRoleSelected,
-                                borderColor = if (isRoleSelected) SudXChampagneGold else SudXGoldBorder
+                                borderColor = if (isRoleSelected) SudXChampagneGold else sudxGoldBorder()
                             ),
                             modifier = Modifier.testTag("tutor_role_${role.name.lowercase()}")
                         )
@@ -580,8 +660,8 @@ fun TutorChatScreen(
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = SudXRoyalNavy,
                                 selectedLabelColor = SudXGoldTint,
-                                containerColor = SudXNavySoft,
-                                labelColor = SudXMidnightNavy
+                                containerColor = sudxNavySoftBg(),
+                                labelColor = sudxNavyFg()
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
@@ -621,7 +701,7 @@ fun TutorChatScreen(
                                 Icon(
                                     imageVector = Icons.Default.Lightbulb,
                                     contentDescription = null,
-                                    tint = SudXBronzeGold,
+                                    tint = sudxGoldFg(),
                                     modifier = Modifier.size(15.dp)
                                 )
                             },
@@ -632,12 +712,13 @@ fun TutorChatScreen(
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = false,
-                                borderColor = SudXGoldBorder.copy(alpha = 0.7f)
+                                borderColor = sudxGoldBorder().copy(alpha = 0.7f)
                             ),
                             modifier = Modifier.testTag("quick_chip_${question.take(10)}")
                         )
                     }
                 }
+            }
             }
         }
 
@@ -738,7 +819,7 @@ fun TutorChatScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            color = SudXGoldTint,
+                            color = sudxGoldTintBg(),
                             shape = RoundedCornerShape(50),
                             border = BorderStroke(1.dp, SudXChampagneGold.copy(alpha = 0.6f))
                         ) {
@@ -749,14 +830,14 @@ fun TutorChatScreen(
                                 Text(
                                     text = "المادة المحددة: ${selectedSubjectTag.orEmpty()}",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = SudXMidnightNavy,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Icon(
                                     imageVector = Icons.Default.Clear,
                                     contentDescription = "إلغاء تحديد المادة",
-                                    tint = SudXMidnightNavy,
+                                    tint = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier
                                         .size(14.dp)
                                         .clickable { selectedSubjectTag = null }
@@ -780,7 +861,7 @@ fun TutorChatScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Surface(
-                                color = SudXEmeraldSoft,
+                                color = sudxEmeraldSoftBg(),
                                 shape = RoundedCornerShape(14.dp),
                                 border = BorderStroke(1.dp, SudXEmerald.copy(alpha = 0.5f)),
                                 modifier = Modifier.fillMaxWidth()
@@ -803,7 +884,7 @@ fun TutorChatScreen(
                                                 Icons.Default.Description
                                             },
                                             contentDescription = null,
-                                            tint = SudXEmeraldDark,
+                                            tint = sudxEmeraldFg(),
                                             modifier = Modifier.size(20.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
@@ -811,13 +892,13 @@ fun TutorChatScreen(
                                             Text(
                                                 text = "ملف مرفق جاهز للتحليل:",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = SudXEmeraldDark,
+                                                color = sudxEmeraldFg(),
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Text(
                                                 text = att.fileName,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = SudXMidnightNavy,
+                                                color = MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -832,7 +913,7 @@ fun TutorChatScreen(
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "إزالة الملف المرفق",
-                                            tint = SudXEmeraldDark,
+                                            tint = sudxEmeraldFg(),
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -861,14 +942,14 @@ fun TutorChatScreen(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(SudXNavySoft)
-                            .border(1.dp, SudXGoldBorder.copy(alpha = 0.6f), CircleShape)
+                            .background(sudxNavySoftBg())
+                            .border(1.dp, sudxGoldBorder().copy(alpha = 0.6f), CircleShape)
                             .testTag("attach_file_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.AttachFile,
                             contentDescription = "إرفاق ملف PDF أو صورة مسألة",
-                            tint = SudXRoyalNavy
+                            tint = sudxNavyFg()
                         )
                     }
 
@@ -899,14 +980,14 @@ fun TutorChatScreen(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(SudXGoldTint)
-                            .border(1.dp, SudXGoldBorder, CircleShape)
+                            .background(sudxGoldTintBg())
+                            .border(1.dp, sudxGoldBorder(), CircleShape)
                             .testTag("voice_input_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Mic,
                             contentDescription = "طرح سؤال بالصوت",
-                            tint = SudXBronzeGold
+                            tint = sudxGoldFg()
                         )
                     }
 
@@ -1098,7 +1179,7 @@ fun ChatMessageItem(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (message.isSearchGrounded || message.groundingSources.isNotEmpty() || message.searchQueries.isNotEmpty()) {
                                 Surface(
-                                    color = SudXEmeraldSoft,
+                                    color = sudxEmeraldSoftBg(),
                                     shape = RoundedCornerShape(50),
                                     border = BorderStroke(1.dp, SudXEmerald.copy(alpha = 0.4f))
                                 ) {
@@ -1109,14 +1190,14 @@ fun ChatMessageItem(
                                         Icon(
                                             imageVector = Icons.Default.Search,
                                             contentDescription = null,
-                                            tint = SudXEmeraldDark,
+                                            tint = sudxEmeraldFg(),
                                             modifier = Modifier.size(11.dp)
                                         )
                                         Spacer(modifier = Modifier.width(3.dp))
                                         Text(
                                             text = "بحث Google",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = SudXEmeraldDark,
+                                            color = sudxEmeraldFg(),
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 10.sp
                                         )
@@ -1135,7 +1216,7 @@ fun ChatMessageItem(
                                     Icon(
                                         imageVector = Icons.Default.BookmarkAdd,
                                         contentDescription = "حفظ كملاحظة تعليمية",
-                                        tint = SudXBronzeGold,
+                                        tint = sudxGoldFg(),
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -1174,7 +1255,7 @@ fun ChatMessageItem(
 
                 if (!message.attachmentName.isNullOrBlank()) {
                     Surface(
-                        color = if (isUser) Color.Black.copy(alpha = 0.25f) else SudXNavySoft,
+                        color = if (isUser) Color.Black.copy(alpha = 0.25f) else sudxNavySoftBg(),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.padding(bottom = 8.dp)
                     ) {
@@ -1189,14 +1270,14 @@ fun ChatMessageItem(
                                     Icons.Default.Description
                                 },
                                 contentDescription = null,
-                                tint = if (isUser) SudXChampagneGold else SudXRoyalNavy,
+                                tint = if (isUser) SudXChampagneGold else sudxNavyFg(),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "ملف مرفق: ${message.attachmentName}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isUser) SudXGoldTint else SudXMidnightNavy,
+                                color = if (isUser) SudXGoldTint else MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -1294,14 +1375,14 @@ fun GroundingMetadataSection(
             ) {
                 items(searchQueries) { query ->
                     Surface(
-                        color = SudXNavySoft,
+                        color = sudxNavySoftBg(),
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, SudXGoldBorder.copy(alpha = 0.5f))
+                        border = BorderStroke(1.dp, sudxGoldBorder().copy(alpha = 0.5f))
                     ) {
                         Text(
                             text = "🔍 $query",
                             style = MaterialTheme.typography.labelSmall,
-                            color = SudXMidnightNavy,
+                            color = sudxNavyFg(),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -1315,14 +1396,14 @@ fun GroundingMetadataSection(
                 Icon(
                     imageVector = Icons.Default.Public,
                     contentDescription = null,
-                    tint = SudXEmeraldDark,
+                    tint = sudxEmeraldFg(),
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = "المصادر الموثقة من بحث Google:",
                     style = MaterialTheme.typography.labelSmall,
-                    color = SudXEmeraldDark,
+                    color = sudxEmeraldFg(),
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -1361,7 +1442,7 @@ fun GroundingMetadataSection(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                                 contentDescription = "فتح المصدر",
-                                tint = SudXBronzeGold,
+                                tint = sudxGoldFg(),
                                 modifier = Modifier.size(14.dp)
                             )
                         }
@@ -1495,22 +1576,22 @@ fun ErrorTeacherBubble(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = SudXCrimsonSoft),
-        border = BorderStroke(1.dp, SudXCrimson.copy(alpha = 0.35f)),
+        colors = CardDefaults.cardColors(containerColor = sudxCrimsonSoftBg()),
+        border = BorderStroke(1.dp, sudxCrimsonFg().copy(alpha = 0.35f)),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 text = "تنبيه المعلم:",
                 style = MaterialTheme.typography.titleSmall,
-                color = SudXCrimson,
+                color = sudxCrimsonFg(),
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = errorMessage,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF7F1D1D)
+                color = MaterialTheme.colorScheme.onSurface
             )
             if (onRetry != null) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1521,7 +1602,7 @@ fun ErrorTeacherBubble(
                     Text(
                         text = "إعادة المحاولة",
                         style = MaterialTheme.typography.labelLarge,
-                        color = SudXCrimson,
+                        color = sudxCrimsonFg(),
                         fontWeight = FontWeight.Bold
                     )
                 }

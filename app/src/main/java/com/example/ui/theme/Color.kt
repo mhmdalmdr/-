@@ -26,11 +26,21 @@ val SudXPearlSurface = Color(0xFFFFFFFF)
 val SudXCardSubtle = Color(0xFFF1EFE9)
 val SudXHairline = Color(0xFFE4E0D5)
 
-// Dark Mode Surfaces: Obsidian Velvet & Slate
-val SudXObsidianBg = Color(0xFF070B16)
-val SudXObsidianSurface = Color(0xFF0F172A)
-val SudXObsidianVariant = Color(0xFF17223B)
-val SudXObsidianBorder = Color(0xFF2A395E)
+// Dark Mode Surfaces: Gentle Midnight Obsidian & Slate (Eye-comfort calibrated for late-night study)
+val SudXObsidianBg = Color(0xFF0A0F1D)
+val SudXObsidianSurface = Color(0xFF121B30)
+val SudXObsidianVariant = Color(0xFF1A2540)
+val SudXObsidianBorder = Color(0xFF2B3A60)
+
+// Dark Mode Semantic Soft Containers & High-Contrast Accents
+val SudXNavySoftDark = Color(0xFF192644)
+val SudXNavyTextDark = Color(0xFFDCE6FF)
+val SudXGoldTintDark = Color(0xFF241E14)
+val SudXGoldBorderDark = Color(0xFF6B5723)
+val SudXEmeraldSoftDark = Color(0xFF0E2B23)
+val SudXEmeraldBright = Color(0xFF34D399)
+val SudXCrimsonSoftDark = Color(0xFF31161C)
+val SudXCrimsonBright = Color(0xFFFCA5A5)
 
 // Semantic Accents
 val SudXEmerald = Color(0xFF10B981)
@@ -44,7 +54,8 @@ val TextPrimaryLight = Color(0xFF0F172A)
 val TextSecondaryLight = Color(0xFF475569)
 val TextMutedLight = Color(0xFF64748B)
 
-val TextPrimaryDark = Color(0xFFF8F6F0)
+// Warm soft ivory for Dark Mode reduces blue-light glare during night study
+val TextPrimaryDark = Color(0xFFF3EFE6)
 val TextSecondaryDark = Color(0xFFCBD5E1)
 val TextMutedDark = Color(0xFF94A3B8)
 

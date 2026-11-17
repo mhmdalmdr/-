@@ -20,7 +20,7 @@ val Context.sudxSettingsDataStore: DataStore<Preferences> by preferencesDataStor
 enum class AppThemeMode(val titleAr: String) {
     SYSTEM("تلقائي"),
     LIGHT("نهاري"),
-    DARK("ليلي")
+    DARK("الوضع الليلي")
 }
 
 enum class AcademicStream(val titleAr: String, val subtitleAr: String) {

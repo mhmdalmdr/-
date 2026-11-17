@@ -1,0 +1,173 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidForumPost(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80 &&
+             data.authorTrack is string && data.authorTrack.size() >= 1 && data.authorTrack.size() <= 40 &&
+             data.subjectTitle is string && data.subjectTitle.size() >= 2 && data.subjectTitle.size() <= 60 &&
+             data.title is string && data.title.size() >= 4 && data.title.size() <= 140 &&
+             data.body is string && data.body.size() >= 10 && data.body.size() <= 2000 &&
+             data.status in ['OPEN', 'SOLVED'] &&
+             data.visibility == 'PUBLIC' &&
+             data.repliesCount is int && data.repliesCount >= 0 &&
+             data.helpfulCount is int && data.helpfulCount >= 0 &&
+             data.teacherReviewStatus in ['PENDING', 'APPROVED', 'GUIDED'] &&
+             data.teacherReviewNote is string && data.teacherReviewNote.size() <= 2000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidForumReply(data) {
+      return data.postId is string && isValidId(data.postId) &&
+             data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80 &&
+             data.body is string && data.body.size() >= 3 && data.body.size() <= 1500 &&
+             data.postVisibility == 'PUBLIC' &&
+             data.teacherBadge in ['NONE', 'VERIFIED', 'NEEDS_HINT', 'CONTAINS_ERROR'] &&
+             data.teacherFeedback is string && data.teacherFeedback.size() <= 1500 &&
+             data.markedHelpfulByAuthor is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /forum_posts/{postId} {
+      allow get: if isSignedIn() && isValidId(postId) &&
+                    (existing().visibility == 'PUBLIC' || existing().userId == request.auth.uid);
+
+      allow list: if isSignedIn() && existing().visibility == 'PUBLIC';
+
+      allow create: if isSignedIn() &&
+                       isValidId(postId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'authorName', 'authorTrack', 'subjectTitle',
+                         'title', 'body', 'status', 'visibility',
+                         'repliesCount', 'helpfulCount',
+                         'teacherReviewStatus', 'teacherReviewNote',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'authorName', 'authorTrack', 'subjectTitle',
+                         'title', 'body', 'status', 'visibility',
+                         'repliesCount', 'helpfulCount',
+                         'teacherReviewStatus', 'teacherReviewNote',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'OPEN' &&
+                       incoming().visibility == 'PUBLIC' &&
+                       incoming().repliesCount == 0 &&
+                       incoming().helpfulCount == 0 &&
+                       incoming().teacherReviewStatus == 'PENDING' &&
+                       incoming().teacherReviewNote == '' &&
+                       isValidForumPost(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(postId) &&
+                       isValidForumPost(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().authorName == existing().authorName &&
+                       incoming().authorTrack == existing().authorTrack &&
+                       incoming().visibility == existing().visibility &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (
+                           existing().userId == request.auth.uid &&
+                           existing().status == 'OPEN' &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'subjectTitle', 'title', 'body', 'status',
+                             'teacherReviewStatus', 'teacherReviewNote', 'updatedAt'
+                           ])
+                         ) ||
+                         (
+                           incoming().repliesCount == existing().repliesCount + 1 &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['repliesCount', 'updatedAt'])
+                         ) ||
+                         (
+                           incoming().helpfulCount == existing().helpfulCount + 1 &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['helpfulCount', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if isSignedIn() && isValidId(postId) && existing().userId == request.auth.uid;
+
+      match /replies/{replyId} {
+        allow get: if isSignedIn() && isValidId(postId) && isValidId(replyId) &&
+                      existing().postVisibility == 'PUBLIC';
+
+        allow list: if isSignedIn() && existing().postVisibility == 'PUBLIC';
+
+        allow create: if isSignedIn() &&
+                         isValidId(postId) &&
+                         isValidId(replyId) &&
+                         incoming().keys().hasAll([
+                           'postId', 'userId', 'authorName', 'body', 'postVisibility',
+                           'teacherBadge', 'teacherFeedback', 'markedHelpfulByAuthor',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'postId', 'userId', 'authorName', 'body', 'postVisibility',
+                           'teacherBadge', 'teacherFeedback', 'markedHelpfulByAuthor',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().postId == postId &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().postVisibility == 'PUBLIC' &&
+                         incoming().teacherBadge == 'NONE' &&
+                         incoming().teacherFeedback == '' &&
+                         incoming().markedHelpfulByAuthor == false &&
+                         isValidForumReply(incoming()) &&
+                         exists(/databases/$(database)/documents/forum_posts/$(postId));
+
+        allow update: if isSignedIn() &&
+                         isValidId(postId) &&
+                         isValidId(replyId) &&
+                         isValidForumReply(incoming()) &&
+                         incoming().postId == existing().postId &&
+                         incoming().userId == existing().userId &&
+                         incoming().authorName == existing().authorName &&
+                         incoming().postVisibility == existing().postVisibility &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           (
+                             existing().userId == request.auth.uid &&
+                             incoming().diff(existing()).affectedKeys().hasOnly([
+                               'body', 'teacherBadge', 'teacherFeedback', 'updatedAt'
+                             ])
+                           ) ||
+                           (
+                             get(/databases/$(database)/documents/forum_posts/$(postId)).data.userId == request.auth.uid &&
+                             incoming().diff(existing()).affectedKeys().hasOnly([
+                               'markedHelpfulByAuthor', 'updatedAt'
+                             ])
+                           )
+                         );
+
+        allow delete: if isSignedIn() && isValidId(postId) && isValidId(replyId) &&
+                         existing().userId == request.auth.uid;
+      }
+    }
+  }
+}

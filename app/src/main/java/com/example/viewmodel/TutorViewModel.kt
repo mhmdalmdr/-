@@ -26,8 +26,11 @@ import com.example.model.QuizAttemptUiState
 import com.example.model.QuizDifficulty
 import com.example.model.QuizGeneratorUiState
 import com.example.model.QuizResultRecord
+import com.example.model.ExamTip
 import com.example.model.GuidedHintUiState
 import com.example.model.StudyNote
+import com.example.model.TeacherTipCategory
+import com.example.model.TeacherTipsRefreshState
 import com.example.model.TutorRole
 import com.example.util.AiQuizJsonParser
 import com.example.util.AuthResult
@@ -35,6 +38,7 @@ import com.example.util.GoogleAuthHelper
 import com.example.util.PomodoroFeedbackUtil
 import com.example.util.ProgressAssessmentEngine
 import com.example.util.StudentAccount
+import com.example.util.TeacherTipsJsonParser
 import com.google.firebase.Firebase
 import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.ai
@@ -62,6 +66,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
+import java.util.Calendar
 import java.util.UUID
 
 private const val MAX_ATTACHMENT_BYTES = 18 * 1024 * 1024
@@ -388,6 +393,80 @@ class TutorViewModel(
         )
     }
 
+    // --- Renewable Teacher's Tips (نصائح المعلم المتجددة) ---
+    private val _teacherTips = MutableStateFlow(CurriculumData.examTips)
+    val teacherTips: StateFlow<List<ExamTip>> = _teacherTips.asStateFlow()
+
+    private val _teacherTipsRefreshState = MutableStateFlow<TeacherTipsRefreshState>(TeacherTipsRefreshState.Idle)
+    val teacherTipsRefreshState: StateFlow<TeacherTipsRefreshState> = _teacherTipsRefreshState.asStateFlow()
+
+    private val _featuredTipIndex = MutableStateFlow(
+        if (CurriculumData.examTips.isNotEmpty()) {
+            Calendar.getInstance().get(Calendar.DAY_OF_YEAR) % CurriculumData.examTips.size
+        } else {
+            0
+        }
+    )
+    val featuredTipIndex: StateFlow<Int> = _featuredTipIndex.asStateFlow()
+
+    private var teacherTipsJob: Job? = null
+
+    private val teacherTipsResponseSchema by lazy {
+        Schema.obj(
+            properties = mapOf(
+                "tips" to Schema.array(
+                    items = Schema.obj(
+                        properties = mapOf(
+                            "title" to Schema.string(description = "A warm, compelling Arabic title for the study or exam tip"),
+                            "category" to Schema.string(description = "Exact Arabic category: 'قلق الاختبارات' or 'المواد العلمية' or 'المواد الأدبية' or 'تنظيم الوقت' or 'قاعة الامتحان'"),
+                            "content" to Schema.string(description = "Clear, encouraging, step-by-step guidance tailored to Sudanese Secondary Certificate students (55-110 words)"),
+                            "importantRule" to Schema.string(description = "A concise golden rule summary sentence"),
+                            "actionSteps" to Schema.array(
+                                items = Schema.string(),
+                                description = "2 to 3 concrete, practical action steps the student can apply immediately"
+                            ),
+                            "streamTag" to Schema.string(description = "Target stream in Arabic: 'عام' or 'القسم العلمي' or 'القسم الأدبي'")
+                        )
+                    ),
+                    description = "Exactly 3 fresh, distinct Sudanese Secondary Certificate teacher tips"
+                )
+            )
+        )
+    }
+
+    private val teacherTipsSystemInstruction = """
+        أنت معلم سوداني خبير ومرشد تربوي متخصص في إعداد طلاب الشهادة الثانوية السودانية.
+        مهمتك: تقديم نصائح متجددة، عملية، ومشجعة في كيفية التعامل مع قلق الاختبارات، أو استراتيجيات المذاكرة الفعالة للمواد العلمية والأدبية، أو تنظيم الوقت وإدارة قاعة الامتحان.
+        قواعد:
+        1. استخدم لغة عربية فصحى مبسطة وودودة ومحفزة تناسب طلاب السودان.
+        2. قدّم نصائح عملية وخطوات تطبيقية قابلة للتنفيذ فوراً وليس كلاماً عاماً مكرراً.
+        3. التزم في حقل category بإحدى الفئات التالية حرفياً: (قلق الاختبارات، المواد العلمية، المواد الأدبية، تنظيم الوقت، قاعة الامتحان).
+    """.trimIndent()
+
+    private val teacherTipsJsonConfig by lazy {
+        generationConfig {
+            temperature = 0.85f
+            responseMimeType = "application/json"
+            responseSchema = teacherTipsResponseSchema
+        }
+    }
+
+    private val teacherTipsModel: GenerativeModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = "gemini-3.8-flash",
+            generationConfig = teacherTipsJsonConfig,
+            systemInstruction = content { text(teacherTipsSystemInstruction) }
+        )
+    }
+
+    private val teacherTipsFallbackModel: GenerativeModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = "gemini-3.5-flash-lite",
+            generationConfig = teacherTipsJsonConfig,
+            systemInstruction = content { text(teacherTipsSystemInstruction) }
+        )
+    }
+
     // --- Pomodoro Study Timer State ---
     private val _pomodoroState = MutableStateFlow(PomodoroUiState())
     val pomodoroState: StateFlow<PomodoroUiState> = _pomodoroState.asStateFlow()
@@ -476,6 +555,11 @@ class TutorViewModel(
                 Log.e(TAG, "Failed to save theme mode", e)
             }
         }
+    }
+
+    fun toggleNightMode(currentlyDark: Boolean) {
+        val nextMode = if (currentlyDark) AppThemeMode.LIGHT else AppThemeMode.DARK
+        updateThemeMode(nextMode)
     }
 
     fun updateAcademicStream(stream: AcademicStream) {
@@ -1985,8 +2069,88 @@ class TutorViewModel(
         }
     }
 
+    fun refreshTeacherTips(category: TeacherTipCategory = TeacherTipCategory.ALL) {
+        teacherTipsJob?.cancel()
+        _teacherTipsRefreshState.value = TeacherTipsRefreshState.Loading
+
+        val streamTitle = settings.value.academicStream.titleAr
+        val existingTitles = _teacherTips.value.take(12).joinToString(" | ") { it.title }
+        val focusDescription = if (category == TeacherTipCategory.ALL) {
+            "متنوعة تشمل التعامل مع قلق الاختبارات واستراتيجيات مذاكرة المواد العلمية والأدبية وتنظيم الوقت"
+        } else {
+            "مركزة حول محور: «${category.titleAr}»"
+        }
+
+        val prompt = """
+            ولّد 3 نصائح جديدة ومتجددة لطلاب الشهادة الثانوية السودانية ($streamTitle).
+            التركيز المطلوب: $focusDescription.
+            تجنب تكرار عناوين النصائح الحالية التالية:
+            $existingTitles
+            اجعل كل نصيحة عملية وملهمة، مع قاعدة ذهبية و2 إلى 3 خطوات تطبيقية واضحة.
+        """.trimIndent()
+
+        teacherTipsJob = viewModelScope.launch {
+            try {
+                val rawJson = withTimeout(45_000L) {
+                    val primaryText = try {
+                        teacherTipsModel.generateContent(prompt).text
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Primary teacher tips model failed, trying fallback", e)
+                        null
+                    }
+                    primaryText?.takeIf { it.isNotBlank() }
+                        ?: teacherTipsFallbackModel.generateContent(prompt).text
+                } ?: throw IllegalStateException("لم تُستلم نصائح جديدة من المعلم الذكي.")
+
+                val parsedTips = TeacherTipsJsonParser.parse(
+                    rawJson = rawJson,
+                    fallbackCategory = category,
+                    defaultStreamTag = streamTitle
+                )
+
+                val currentList = _teacherTips.value
+                val existingNormalizedTitles = currentList.map { it.title.trim() }.toSet()
+                val uniqueFreshTips = parsedTips.filterNot { it.title.trim() in existingNormalizedTitles }
+                val finalAdditions = if (uniqueFreshTips.isNotEmpty()) uniqueFreshTips else parsedTips
+
+                _teacherTips.value = finalAdditions + currentList
+                _featuredTipIndex.value = 0
+                _teacherTipsRefreshState.value = TeacherTipsRefreshState.Success(
+                    addedCount = finalAdditions.size,
+                    categoryTitle = category.titleAr
+                )
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Teacher tips refresh timed out", e)
+                _teacherTipsRefreshState.value = TeacherTipsRefreshState.Error(
+                    "استغرق تجديد النصائح وقتاً طويلاً (45 ثانية). تحقق من اتصال الإنترنت وحاول مرة أخرى."
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh teacher tips via Firebase AI Logic", e)
+                _teacherTipsRefreshState.value = TeacherTipsRefreshState.Error(
+                    e.localizedMessage ?: "تعذر توليد نصائح جديدة حالياً. يرجى المحاولة مجدداً."
+                )
+            }
+        }
+    }
+
+    fun cycleFeaturedTip() {
+        val total = _teacherTips.value.size
+        if (total > 0) {
+            _featuredTipIndex.value = (_featuredTipIndex.value + 1) % total
+        }
+    }
+
+    fun dismissTeacherTipsRefreshState() {
+        _teacherTipsRefreshState.value = TeacherTipsRefreshState.Idle
+    }
+
     override fun onCleared() {
         pomodoroTickerJob?.cancel()
+        teacherTipsJob?.cancel()
         super.onCleared()
     }
 }
