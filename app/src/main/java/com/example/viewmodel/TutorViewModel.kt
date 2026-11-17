@@ -9,6 +9,7 @@ import com.example.data.local.AcademicStream
 import com.example.data.local.AppDatabase
 import com.example.data.local.AppThemeMode
 import com.example.data.local.ChatRepository
+import com.example.data.local.PomodoroStatsRepository
 import com.example.data.local.SettingsRepository
 import com.example.data.local.StudentSettings
 import com.example.data.local.StudyNoteRepository
@@ -16,10 +17,16 @@ import com.example.model.ChatMessage
 import com.example.model.GroundingSource
 import com.example.model.PomodoroPhase
 import com.example.model.PomodoroPreset
+import com.example.model.PomodoroSessionLog
 import com.example.model.PomodoroUiState
 import com.example.model.QuizQuestion
+import com.example.model.QuizAttemptUiState
+import com.example.model.QuizDifficulty
+import com.example.model.QuizGeneratorUiState
+import com.example.model.GuidedHintUiState
 import com.example.model.StudyNote
 import com.example.model.TutorRole
+import com.example.util.AiQuizJsonParser
 import com.example.util.AuthResult
 import com.example.util.GoogleAuthHelper
 import com.example.util.PomodoroFeedbackUtil
@@ -29,6 +36,7 @@ import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.Content
 import com.google.firebase.ai.type.GenerateContentResponse
+import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.Tool
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
@@ -80,6 +88,10 @@ class TutorViewModel(
         StudyNoteRepository(AppDatabase.getInstance(application).studyNoteDao())
     }
 
+    private val pomodoroStatsRepository: PomodoroStatsRepository by lazy {
+        PomodoroStatsRepository(AppDatabase.getInstance(application).pomodoroSessionDao())
+    }
+
     private val settingsRepository: SettingsRepository by lazy {
         SettingsRepository(application)
     }
@@ -125,6 +137,17 @@ class TutorViewModel(
     val studyNotes: StateFlow<List<StudyNote>> = studyNoteRepository.notes
         .catch { e ->
             Log.e(TAG, "Failed to collect study notes from Room DB", e)
+            emit(emptyList())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val pomodoroSessions: StateFlow<List<PomodoroSessionLog>> = pomodoroStatsRepository.sessions
+        .catch { e ->
+            Log.e(TAG, "Failed to collect Pomodoro sessions from Room DB", e)
             emit(emptyList())
         }
         .stateIn(
@@ -205,7 +228,7 @@ class TutorViewModel(
     private val _tutorState = MutableStateFlow<TutorUiState>(TutorUiState.Idle)
     val tutorState: StateFlow<TutorUiState> = _tutorState.asStateFlow()
 
-    // Current interactive quiz state for practice
+    // Current interactive quiz state for practice & AI Socratic quiz generator
     private val _currentQuizIndex = MutableStateFlow(0)
     val currentQuizIndex: StateFlow<Int> = _currentQuizIndex.asStateFlow()
 
@@ -220,6 +243,124 @@ class TutorViewModel(
 
     private val _quizTitle = MutableStateFlow("مقرر التاريخ: الثورة المهدية")
     val quizTitle: StateFlow<String> = _quizTitle.asStateFlow()
+
+    private val _quizAttemptState = MutableStateFlow(QuizAttemptUiState())
+    val quizAttemptState: StateFlow<QuizAttemptUiState> = _quizAttemptState.asStateFlow()
+
+    private val _quizGeneratorState = MutableStateFlow<QuizGeneratorUiState>(QuizGeneratorUiState.Idle)
+    val quizGeneratorState: StateFlow<QuizGeneratorUiState> = _quizGeneratorState.asStateFlow()
+
+    private val _guidedHintState = MutableStateFlow<GuidedHintUiState>(GuidedHintUiState.Idle)
+    val guidedHintState: StateFlow<GuidedHintUiState> = _guidedHintState.asStateFlow()
+
+    private val _isConfiguringAiQuiz = MutableStateFlow(false)
+    val isConfiguringAiQuiz: StateFlow<Boolean> = _isConfiguringAiQuiz.asStateFlow()
+
+    private val _quizSelectedSubject = MutableStateFlow(CurriculumData.subjects.firstOrNull()?.title ?: "الرياضيات المتخصصة")
+    val quizSelectedSubject: StateFlow<String> = _quizSelectedSubject.asStateFlow()
+
+    private val _quizTopicInput = MutableStateFlow("")
+    val quizTopicInput: StateFlow<String> = _quizTopicInput.asStateFlow()
+
+    private val _quizSelectedDifficulty = MutableStateFlow(QuizDifficulty.EXAM_LEVEL)
+    val quizSelectedDifficulty: StateFlow<QuizDifficulty> = _quizSelectedDifficulty.asStateFlow()
+
+    private val _quizQuestionCount = MutableStateFlow(5)
+    val quizQuestionCount: StateFlow<Int> = _quizQuestionCount.asStateFlow()
+
+    private var quizGenerationJob: Job? = null
+    private var guidedHintJob: Job? = null
+
+    private val quizResponseSchema by lazy {
+        Schema.obj(
+            properties = mapOf(
+                "quizTitle" to Schema.string(description = "A concise title combining the subject and topic"),
+                "questions" to Schema.array(
+                    items = Schema.obj(
+                        properties = mapOf(
+                            "question" to Schema.string(description = "Clear multiple-choice question tailored to the subject and topic"),
+                            "options" to Schema.array(
+                                items = Schema.string(),
+                                description = "Exactly 4 distinct plausible answer options"
+                            ),
+                            "correctIndex" to Schema.integer(description = "0-based index (0, 1, 2, or 3) of the single correct answer"),
+                            "socraticHint" to Schema.string(description = "A guiding question or clue pointing toward the concept WITHOUT revealing or naming the correct option"),
+                            "optionHints" to Schema.array(
+                                items = Schema.string(),
+                                description = "Exactly 4 short guiding feedback messages matching each option index. For wrong options, explain what makes that option inaccurate and nudge the student toward the right rule WITHOUT stating the answer. For the correct option, affirm the student's reasoning."
+                            ),
+                            "explanation" to Schema.string(description = "Complete conceptual explanation revealed only after the student discovers the answer"),
+                            "teacherGuidance" to Schema.string(description = "Encouraging exam-taking tip related to this concept")
+                        )
+                    ),
+                    description = "List of generated multiple-choice questions"
+                )
+            )
+        )
+    }
+
+    private val quizJsonConfig by lazy {
+        generationConfig {
+            temperature = 0.7f
+            responseMimeType = "application/json"
+            responseSchema = quizResponseSchema
+        }
+    }
+
+    private val quizGeneratorSystemInstruction = """
+        أنت معلم خبير ومؤلف اختبارات ذكي لطلاب الشهادة الثانوية السودانية والمواد الدراسية المختلفة.
+        مهمتك: توليد أسئلة اختيار من متعدد دقيقة تعليمياً وفق المادة والموضوع ومستوى الصعوبة المطلوب.
+        قواعد صارمة:
+        1. كل سؤال يجب أن يحتوي على 4 خيارات منطقية ومتقاربة في الصياغة، مع إجابة واحدة صحيحة فقط.
+        2. في الحقل socraticHint وفي رسائل التغذية الراجعة للخيارات الخاطئة ضمن optionHints: لا تذكر الإجابة الصحيحة أبداً ولا تلمّح لرقمها أو نصها مباشرة؛ بل وجّه الطالب بسؤال إرشادي أو تذكير بالقانون أو المفهوم الذي يكشف الخطأ في اختياره ويدفعه للتفكير والوصول للحل بنفسه.
+        3. إذا كان الموضوع باللغة الإنجليزية أو مادة اللغة الإنجليزية، اكتب الأسئلة والخيارات بالإنجليزية، واجعل التوجيه الإرشادي واضحاً ومفيداً (بالعربية المبسطة أو الإنجليزية المناسبة لمستوى الطالب). وفي باقي المواد اكتب كل شيء بلغة عربية فصحى واضحة ومباشرة.
+    """.trimIndent()
+
+    private val quizGeneratorModel: GenerativeModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = "gemini-3.8-flash",
+            generationConfig = quizJsonConfig,
+            systemInstruction = content { text(quizGeneratorSystemInstruction) }
+        )
+    }
+
+    private val quizGeneratorFallbackModel: GenerativeModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = "gemini-3.5-flash-lite",
+            generationConfig = quizJsonConfig,
+            systemInstruction = content { text(quizGeneratorSystemInstruction) }
+        )
+    }
+
+    private val socraticCoachSystemInstruction = """
+        أنت معلم سقراطي ذكي لطلاب الشهادة الثانوية.
+        عندما يخطئ الطالب في سؤال اختيار من متعدد أو يطلب تلميحاً:
+        - ممنوع منعاً باتاً ذكر الإجابة الصحيحة أو حرفها أو نصها أو الإشارة المباشرة إليها.
+        - خاطب الطالب بأسلوب مشجع ومختصر (30 إلى 75 كلمة).
+        - وضّح بلطف سبب عدم كفاية الخيار الذي جربه، ثم اطرح سؤالاً موجِّهاً أو تلميحاً منهجياً يقوده لاكتشاف الإجابة الصحيحة بنفسه في المحاولة التالية.
+    """.trimIndent()
+
+    private val socraticCoachModel: GenerativeModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = "gemini-3.8-flash",
+            generationConfig = generationConfig {
+                temperature = 0.65f
+                maxOutputTokens = 320
+            },
+            systemInstruction = content { text(socraticCoachSystemInstruction) }
+        )
+    }
+
+    private val socraticCoachFallbackModel: GenerativeModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = "gemini-3.5-flash-lite",
+            generationConfig = generationConfig {
+                temperature = 0.65f
+                maxOutputTokens = 320
+            },
+            systemInstruction = content { text(socraticCoachSystemInstruction) }
+        )
+    }
 
     // --- Pomodoro Study Timer State ---
     private val _pomodoroState = MutableStateFlow(PomodoroUiState())
@@ -903,37 +1044,328 @@ class TutorViewModel(
         }
     }
 
+    fun openAiQuizConfigurator(subjectTitle: String? = null, topic: String? = null) {
+        if (!subjectTitle.isNullOrBlank()) {
+            _quizSelectedSubject.value = subjectTitle
+        }
+        if (topic != null) {
+            _quizTopicInput.value = topic
+        }
+        _quizGeneratorState.value = QuizGeneratorUiState.Idle
+        _isConfiguringAiQuiz.value = true
+    }
+
+    fun closeAiQuizConfigurator() {
+        _isConfiguringAiQuiz.value = false
+    }
+
+    fun updateQuizGeneratorSubject(subjectTitle: String) {
+        _quizSelectedSubject.value = subjectTitle
+        if (_quizGeneratorState.value is QuizGeneratorUiState.Error) {
+            _quizGeneratorState.value = QuizGeneratorUiState.Idle
+        }
+    }
+
+    fun updateQuizGeneratorTopic(topic: String) {
+        _quizTopicInput.value = topic
+        if (_quizGeneratorState.value is QuizGeneratorUiState.Error) {
+            _quizGeneratorState.value = QuizGeneratorUiState.Idle
+        }
+    }
+
+    fun updateQuizGeneratorDifficulty(difficulty: QuizDifficulty) {
+        _quizSelectedDifficulty.value = difficulty
+    }
+
+    fun updateQuizGeneratorCount(count: Int) {
+        _quizQuestionCount.value = count.coerceIn(3, 8)
+    }
+
+    fun generateAiQuiz() {
+        val subject = _quizSelectedSubject.value.trim().ifBlank { "عام — الشهادة السودانية" }
+        val topic = _quizTopicInput.value.trim()
+        if (topic.isBlank()) {
+            _quizGeneratorState.value = QuizGeneratorUiState.Error("يرجى كتابة اسم الموضوع أو اختياره من المقترحات أولاً.")
+            return
+        }
+
+        val difficulty = _quizSelectedDifficulty.value
+        val count = _quizQuestionCount.value
+
+        quizGenerationJob?.cancel()
+        guidedHintJob?.cancel()
+        _guidedHintState.value = GuidedHintUiState.Idle
+        _quizGeneratorState.value = QuizGeneratorUiState.Generating
+
+        val prompt = """
+            أنشئ اختبار اختيار من متعدد مكوّن من $count أسئلة بالضبط.
+            - المادة الدراسية: $subject
+            - الموضوع المحدد: $topic
+            - مستوى الصعوبة: ${difficulty.titleAr} (${difficulty.promptDescription})
+            
+            تأكد من:
+            - تنوع الأسئلة بحيث تغطي جوانب مختلفة من الموضوع ولا تتكرر الفكرة نفسها.
+            - احتواء كل سؤال على 4 خيارات (options) و4 رسائل توجيهية مطابقة لها بالترتيب (optionHints).
+            - أن تقود رسائل التوجيه (socraticHint و optionHints للخيارات الخاطئة) الطالب للتفكير واكتشاف الخطأ دون التصريح بالإجابة الصحيحة نهائياً.
+        """.trimIndent()
+
+        quizGenerationJob = viewModelScope.launch {
+            try {
+                val rawJson = withTimeout(60_000L) {
+                    val primaryText = try {
+                        quizGeneratorModel.generateContent(prompt).text
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Primary AI quiz model failed, trying fallback", e)
+                        null
+                    }
+                    primaryText?.takeIf { it.isNotBlank() }
+                        ?: quizGeneratorFallbackModel.generateContent(prompt).text
+                } ?: throw IllegalStateException("لم يُرجع النموذج الذكي بيانات الاختبار.")
+
+                val parsed = AiQuizJsonParser.parse(
+                    rawJson = rawJson,
+                    fallbackTitle = "$subject: $topic"
+                )
+
+                _quizQuestions.value = parsed.questions
+                _quizTitle.value = parsed.quizTitle
+                resetQuiz()
+                _quizGeneratorState.value = QuizGeneratorUiState.Ready(subject, topic)
+                _isConfiguringAiQuiz.value = false
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "AI quiz generation timed out", e)
+                _quizGeneratorState.value = QuizGeneratorUiState.Error(
+                    "استغرق توليد الاختبار وقتاً أطول من المعتاد (60 ثانية). تأكد من اتصال الإنترنت وحاول مرة أخرى."
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to generate AI quiz", e)
+                _quizGeneratorState.value = QuizGeneratorUiState.Error(
+                    e.localizedMessage ?: "تعذر إنشاء الاختبار الذكي حالياً. يرجى المحاولة مرة أخرى."
+                )
+            }
+        }
+    }
+
     fun selectQuizAnswer(index: Int) {
-        if (!_isAnswerSubmitted.value) {
+        val attempt = _quizAttemptState.value
+        if (!attempt.isSolvedOrRevealed && !attempt.attemptedWrongIndices.contains(index)) {
             _selectedAnswerIndex.value = index
         }
     }
 
     fun submitQuizAnswer() {
-        if (_selectedAnswerIndex.value != null) {
+        val selectedIdx = _selectedAnswerIndex.value ?: return
+        val currentQuestion = _quizQuestions.value.getOrNull(_currentQuizIndex.value) ?: return
+        val currentAttempt = _quizAttemptState.value
+        if (currentAttempt.isSolvedOrRevealed) return
+
+        val isCorrect = selectedIdx == currentQuestion.correctIndex
+        if (isCorrect) {
+            guidedHintJob?.cancel()
+            _guidedHintState.value = GuidedHintUiState.Idle
+            val isFirstTry = currentAttempt.attemptedWrongIndices.isEmpty()
+            val affirmation = currentQuestion.optionHints.getOrNull(selectedIdx)
+                ?.takeIf { it.isNotBlank() }
+                ?: if (isFirstTry) {
+                    "إجابة دقيقة وموفقة من المحاولة الأولى!"
+                } else {
+                    "رائع! استثمرت التوجيه بنجاح ووصلت إلى الإجابة الصحيحة بنفسك."
+                }
+
             _isAnswerSubmitted.value = true
+            _quizAttemptState.update { state ->
+                state.copy(
+                    isSolvedOrRevealed = true,
+                    wasRevealedWithoutSolving = false,
+                    activeGuidanceText = affirmation,
+                    isGuidanceCorrect = true,
+                    firstTryCorrectCount = state.firstTryCorrectCount + if (isFirstTry) 1 else 0,
+                    guidedCorrectCount = state.guidedCorrectCount + if (!isFirstTry) 1 else 0
+                )
+            }
+        } else {
+            val updatedWrong = currentAttempt.attemptedWrongIndices + selectedIdx
+            val targetedHint = currentQuestion.optionHints.getOrNull(selectedIdx)
+                ?.takeIf { it.isNotBlank() }
+                ?: currentQuestion.socraticHint.takeIf { it.isNotBlank() }
+                ?: "هذا الخيار يحتاج إلى إعادة نظر. فكر في القاعدة الأساسية أو المعطيات في السؤال وحاول اختياراً آخر — أو اطلب توجيهاً إضافياً من المعلم الذكي."
+
+            _selectedAnswerIndex.value = null
+            _isAnswerSubmitted.value = false
+            _guidedHintState.value = GuidedHintUiState.Idle
+            _quizAttemptState.update { state ->
+                state.copy(
+                    attemptedWrongIndices = updatedWrong,
+                    activeGuidanceText = targetedHint,
+                    isGuidanceCorrect = false
+                )
+            }
+        }
+    }
+
+    fun requestPreAttemptHint() {
+        val currentQuestion = _quizQuestions.value.getOrNull(_currentQuizIndex.value) ?: return
+        val attempt = _quizAttemptState.value
+        if (attempt.isSolvedOrRevealed) return
+
+        val presetHint = currentQuestion.socraticHint.trim()
+        if (presetHint.isNotBlank() && !attempt.hasRequestedPreHint) {
+            _quizAttemptState.update {
+                it.copy(
+                    hasRequestedPreHint = true,
+                    activeGuidanceText = presetHint,
+                    isGuidanceCorrect = false
+                )
+            }
+            return
+        }
+
+        requestDeepSocraticGuidance()
+    }
+
+    fun requestDeepSocraticGuidance() {
+        val currentQuestion = _quizQuestions.value.getOrNull(_currentQuizIndex.value) ?: return
+        val attempt = _quizAttemptState.value
+        if (attempt.isSolvedOrRevealed) return
+
+        val wrongAttemptsSummary = if (attempt.attemptedWrongIndices.isEmpty()) {
+            "لم يجرب الطالب أي خيار بعد، ويطلب تلميحاً تمهيدياً قبل الاختيار."
+        } else {
+            attempt.attemptedWrongIndices.joinToString(" ، ") { idx ->
+                currentQuestion.options.getOrNull(idx).orEmpty()
+            }.let { "جرّب الطالب هذه الخيارات الخاطئة: [$it]." }
+        }
+
+        val correctOptionText = currentQuestion.options.getOrNull(currentQuestion.correctIndex).orEmpty()
+        val prompt = """
+            الموضوع: ${_quizTitle.value}
+            السؤال: ${currentQuestion.question}
+            الخيارات المتاحة:
+            ${currentQuestion.options.mapIndexed { i, opt -> "${i + 1}. $opt" }.joinToString("\n")}
+            
+            معلومة سرية للمعلم فقط (ممنوع كشفها أو ذكر نصها للطالب): الإجابة الصحيحة هي "$correctOptionText".
+            وضع الطالب الحالي: $wrongAttemptsSummary
+            
+            المطلوب: أعطِ الطالب توجيهاً إرشادياً مركزاً (سؤالاً موجِّهاً أو تلميحاً للمبدأ العلمي/المنطقي) يساعده على استبعاد الخطأ والوصول إلى الحل الصحيح بنفسه دون التصريح بالإجابة إطلاقاً.
+        """.trimIndent()
+
+        guidedHintJob?.cancel()
+        _guidedHintState.value = GuidedHintUiState.Loading
+        _quizAttemptState.update { it.copy(hasRequestedPreHint = true) }
+
+        guidedHintJob = viewModelScope.launch {
+            val builder = StringBuilder()
+            try {
+                withTimeout(60_000L) {
+                    try {
+                        socraticCoachModel.generateContentStream(prompt).collect { chunk ->
+                            val text = chunk.text.orEmpty()
+                            if (text.isNotEmpty()) {
+                                builder.append(text)
+                                _guidedHintState.value = GuidedHintUiState.Streaming(builder.toString())
+                            }
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Primary Socratic coach stream failed, trying fallback", e)
+                    }
+
+                    if (builder.isBlank()) {
+                        val fallbackResp = socraticCoachFallbackModel.generateContent(prompt).text.orEmpty()
+                        if (fallbackResp.isNotBlank()) {
+                            builder.append(fallbackResp)
+                        }
+                    }
+                }
+
+                val finalHint = builder.toString().trim()
+                if (finalHint.isNotBlank()) {
+                    _guidedHintState.value = GuidedHintUiState.Ready(finalHint)
+                    _quizAttemptState.update {
+                        it.copy(
+                            activeGuidanceText = finalHint,
+                            isGuidanceCorrect = false
+                        )
+                    }
+                } else {
+                    _guidedHintState.value = GuidedHintUiState.Error("لم يتمكن المعلم الذكي من توليد توجيه حالياً.")
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Socratic guidance timed out", e)
+                _guidedHintState.value = GuidedHintUiState.Error("استغرق جلب التوجيه وقتاً طويلاً. حاول مرة أخرى.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to generate Socratic guidance", e)
+                _guidedHintState.value = GuidedHintUiState.Error(
+                    e.localizedMessage ?: "تعذر جلب التوجيه الذكي حالياً."
+                )
+            }
+        }
+    }
+
+    fun revealCurrentQuestionAnswer() {
+        val currentQuestion = _quizQuestions.value.getOrNull(_currentQuizIndex.value) ?: return
+        val attempt = _quizAttemptState.value
+        if (attempt.isSolvedOrRevealed) return
+
+        guidedHintJob?.cancel()
+        _guidedHintState.value = GuidedHintUiState.Idle
+        _selectedAnswerIndex.value = currentQuestion.correctIndex
+        _isAnswerSubmitted.value = true
+        _quizAttemptState.update { state ->
+            state.copy(
+                isSolvedOrRevealed = true,
+                wasRevealedWithoutSolving = true,
+                activeGuidanceText = "تم كشف الإجابة بناءً على طلبك — راجع الشرح المنهجي أسفله لتثبيت الفكرة.",
+                isGuidanceCorrect = false,
+                revealedCount = state.revealedCount + 1
+            )
         }
     }
 
     fun nextQuizQuestion() {
+        guidedHintJob?.cancel()
+        _guidedHintState.value = GuidedHintUiState.Idle
         val total = _quizQuestions.value.size
         if (_currentQuizIndex.value + 1 < total) {
             _currentQuizIndex.value = _currentQuizIndex.value + 1
             _selectedAnswerIndex.value = null
             _isAnswerSubmitted.value = false
+            _quizAttemptState.update { state ->
+                state.copy(
+                    attemptedWrongIndices = emptySet(),
+                    isSolvedOrRevealed = false,
+                    wasRevealedWithoutSolving = false,
+                    activeGuidanceText = null,
+                    isGuidanceCorrect = false,
+                    hasRequestedPreHint = false
+                )
+            }
+        } else {
+            _quizAttemptState.update { it.copy(isQuizFinished = true) }
         }
     }
 
     fun resetQuiz() {
+        guidedHintJob?.cancel()
+        _guidedHintState.value = GuidedHintUiState.Idle
         _currentQuizIndex.value = 0
         _selectedAnswerIndex.value = null
         _isAnswerSubmitted.value = false
+        _quizAttemptState.value = QuizAttemptUiState()
     }
 
     fun loadSubjectQuiz(questions: List<QuizQuestion>, title: String = "مقرر التاريخ: الثورة المهدية") {
         if (questions.isNotEmpty()) {
             _quizQuestions.value = questions
             _quizTitle.value = title
+            _isConfiguringAiQuiz.value = false
             resetQuiz()
         }
     }
@@ -1284,8 +1716,19 @@ class TutorViewModel(
         viewModelScope.launch {
             try {
                 settingsRepository.resetPomodoroStats()
+                pomodoroStatsRepository.clearAll()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to reset Pomodoro statistics", e)
+            }
+        }
+    }
+
+    fun deletePomodoroSessionLog(sessionId: Long) {
+        viewModelScope.launch {
+            try {
+                pomodoroStatsRepository.deleteSession(sessionId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete Pomodoro session log", e)
             }
         }
     }
@@ -1337,6 +1780,11 @@ class TutorViewModel(
             viewModelScope.launch {
                 try {
                     settingsRepository.recordPomodoroFocusCompletion(current.focusMinutes)
+                    pomodoroStatsRepository.recordCompletedSession(
+                        subjectTitle = current.selectedSubjectTitle,
+                        durationMinutes = current.focusMinutes,
+                        goal = current.sessionGoal
+                    )
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to record Pomodoro session completion", e)
                 }

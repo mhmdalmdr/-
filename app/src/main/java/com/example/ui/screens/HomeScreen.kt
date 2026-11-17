@@ -25,12 +25,14 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Settings
@@ -103,6 +105,9 @@ fun HomeScreen(
     notesCount: Int = 0,
     pomodoroState: PomodoroUiState = PomodoroUiState(),
     onNavigateToPomodoro: () -> Unit = {},
+    loggedStudyMinutes: Int = 0,
+    onNavigateToStats: () -> Unit = {},
+    onNavigateToAiQuiz: () -> Unit = {},
     studentAccount: StudentAccount? = null,
     academicStreamTitle: String = "القسم العلمي",
     onNavigateToSettings: () -> Unit = {},
@@ -695,6 +700,163 @@ fun HomeScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "فتح مؤقت بومودورو",
+                        tint = SudXBronzeGold,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        // 3.8 Study Statistics & Charts Card
+        item {
+            val hoursBadge = if (loggedStudyMinutes > 0) {
+                com.example.util.StudyStatsAggregator.formatDurationAr(loggedStudyMinutes)
+            } else {
+                "رسوم بيانية تفاعلية"
+            }
+
+            PremiumInteractiveCard(
+                onClick = onNavigateToStats,
+                cornerRadius = 22.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .testTag("home_study_stats_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(SudXNavySoft)
+                            .border(1.dp, SudXRoyalNavy.copy(alpha = 0.22f), RoundedCornerShape(16.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BarChart,
+                            contentDescription = "إحصائيات المذاكرة",
+                            tint = SudXRoyalNavy,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "إحصائيات المذاكرة",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(SudXGoldTint)
+                                    .border(0.8.dp, SudXGoldBorder, RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = hoursBadge,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = SudXBronzeGold,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "تابع إجمالي ساعات المذاكرة لكل مادة ومنحنى نشاطك الأسبوعي",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 19.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "عرض إحصائيات المذاكرة",
+                        tint = SudXRoyalNavy,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        // 3.9 AI-Driven Guided Quiz Generator Card
+        item {
+            PremiumInteractiveCard(
+                onClick = onNavigateToAiQuiz,
+                cornerRadius = 22.dp,
+                containerColor = SudXGoldTint,
+                borderColor = SudXGoldBorder,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .testTag("home_ai_quiz_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(SudXRoyalNavy)
+                            .border(1.2.dp, SudXChampagneGold.copy(alpha = 0.75f), RoundedCornerShape(16.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = "مولّد الاختبارات الذكي",
+                            tint = SudXChampagneGold,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "مولّد الاختبارات الذكي (AI)",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = SudXMidnightNavy
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(SudXRoyalNavy)
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "توجيه ذكي",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = SudXChampagneGold,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "اختر المادة والموضوع، وتدرّب على أسئلة اختيار من متعدد تقودك للحل بتلميحات ذكية",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF334155),
+                            lineHeight = 19.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "فتح مولّد الاختبارات الذكي",
                         tint = SudXBronzeGold,
                         modifier = Modifier.size(20.dp)
                     )

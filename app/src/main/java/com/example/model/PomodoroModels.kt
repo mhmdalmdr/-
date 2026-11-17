@@ -63,3 +63,36 @@ data class PomodoroUiState(
             return String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
         }
 }
+
+enum class StatsTimeFilter(val titleAr: String) {
+    ALL("كل الفترات"),
+    LAST_7_DAYS("آخر 7 أيام"),
+    TODAY("اليوم")
+}
+
+data class PomodoroSessionLog(
+    val id: Long = 0L,
+    val subjectTitle: String,
+    val durationMinutes: Int,
+    val goal: String = "",
+    val completedAt: Long = System.currentTimeMillis()
+)
+
+data class SubjectStudyStat(
+    val subjectTitle: String,
+    val totalMinutes: Int,
+    val sessionsCount: Int,
+    val shareFraction: Float
+) {
+    val totalHours: Float
+        get() = totalMinutes / 60f
+}
+
+data class DailyStudyStat(
+    val dayLabel: String,
+    val totalMinutes: Int
+) {
+    val totalHours: Float
+        get() = totalMinutes / 60f
+}
+

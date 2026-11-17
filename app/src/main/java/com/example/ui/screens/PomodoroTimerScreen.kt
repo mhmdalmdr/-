@@ -44,6 +44,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -135,6 +136,7 @@ fun PomodoroTimerScreen(
     viewModel: TutorViewModel,
     onBack: () -> Unit,
     onAskTeacher: (String) -> Unit,
+    onOpenStats: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     BackHandler { onBack() }
@@ -253,6 +255,21 @@ fun PomodoroTimerScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFFE2E8F0)
                     )
+                }
+
+                if (onOpenStats != null) {
+                    IconButton(
+                        onClick = onOpenStats,
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .testTag("pomodoro_open_stats_header_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BarChart,
+                            contentDescription = "عرض إحصائيات المذاكرة",
+                            tint = SudXChampagneGold
+                        )
+                    }
                 }
 
                 IconButton(
@@ -1029,6 +1046,29 @@ fun PomodoroTimerScreen(
                                 accentColor = SudXSapphireSlate,
                                 modifier = Modifier.weight(1f)
                             )
+                        }
+
+                        if (onOpenStats != null) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            PremiumOutlinedActionButton(
+                                onClick = onOpenStats,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("pomodoro_view_detailed_stats_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.BarChart,
+                                    contentDescription = null,
+                                    tint = SudXBronzeGold,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "عرض إحصائيات الساعات والرسوم البيانية",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))

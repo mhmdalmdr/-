@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Timer
@@ -72,6 +73,7 @@ fun SubjectDetailScreen(
     onSaveLessonNote: ((title: String, content: String, subjectTitle: String, isPinned: Boolean) -> Unit)? = null,
     onOpenPdfTextbook: ((Textbook) -> Unit)? = null,
     onStartPomodoroForSubject: ((String) -> Unit)? = null,
+    onStartAiQuizForTopic: ((subjectTitle: String, topicTitle: String) -> Unit)? = null,
     initialSelectedUnitId: String? = null,
     modifier: Modifier = Modifier
 ) {
@@ -438,6 +440,32 @@ fun SubjectDetailScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                        }
+                    }
+                }
+
+                if (onStartAiQuizForTopic != null) {
+                    item {
+                        PremiumActionButton(
+                            onClick = { onStartAiQuizForTopic(subject.title, currentUnit.title) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("subject_ai_quiz_btn"),
+                            containerColor = SudXMidnightNavy,
+                            contentColor = SudXGoldTint,
+                            cornerRadius = 14.dp
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Psychology,
+                                contentDescription = null,
+                                tint = SudXChampagneGold,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "توليد اختبار ذكي بالذكاء الاصطناعي لهذا الموضوع",
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }

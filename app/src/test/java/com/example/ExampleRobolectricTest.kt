@@ -251,6 +251,172 @@ class ExampleRobolectricTest {
     vm.resetPomodoro()
     assertEquals("25:00", vm.pomodoroState.value.formattedTime)
   }
+
+  @Test
+  fun `room database stores and deletes completed pomodoro sessions`() = runBlocking {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+      .allowMainThreadQueries()
+      .build()
+    val dao = db.pomodoroSessionDao()
+
+    try {
+      val now = System.currentTimeMillis()
+      val id1 = dao.insertSession(
+        com.example.data.local.PomodoroSessionEntity(
+          subjectTitle = "الرياضيات المتخصصة",
+          durationMinutes = 45,
+          goal = "التكامل المحدود",
+          completedAt = now
+        )
+      )
+      val id2 = dao.insertSession(
+        com.example.data.local.PomodoroSessionEntity(
+          subjectTitle = "الفيزياء",
+          durationMinutes = 25,
+          goal = "الموجات",
+          completedAt = now - 60_000L
+        )
+      )
+      assertTrue(id1 > 0L && id2 > 0L)
+      assertEquals(2, dao.getSessionsCount())
+
+      val all = dao.getAllSessions().first()
+      assertEquals("الرياضيات المتخصصة", all[0].subjectTitle)
+      assertEquals(45, all[0].durationMinutes)
+
+      dao.deleteSessionById(id2)
+      assertEquals(1, dao.getSessionsCount())
+
+      dao.clearAllSessions()
+      assertEquals(0, dao.getSessionsCount())
+    } finally {
+      db.close()
+    }
+  }
+
+  @Test
+  fun `study stats aggregator computes subject hours and weekly totals accurately`() {
+    val now = System.currentTimeMillis()
+    val logs = listOf(
+      com.example.model.PomodoroSessionLog(1L, "الفيزياء", 60, "", now),
+      com.example.model.PomodoroSessionLog(2L, "الفيزياء", 30, "", now - 3_600_000L),
+      com.example.model.PomodoroSessionLog(3L, "الكيمياء", 30, "", now - (2L * 24L * 3_600_000L)),
+      com.example.model.PomodoroSessionLog(4L, "التاريخ", 60, "", now - (15L * 24L * 3_600_000L))
+    )
+
+    val allStats = com.example.util.StudyStatsAggregator.aggregateBySubject(logs)
+    assertEquals(3, allStats.size)
+    assertEquals("الفيزياء", allStats[0].subjectTitle)
+    assertEquals(90, allStats[0].totalMinutes)
+    assertEquals(1.5f, allStats[0].totalHours, 0.001f)
+    assertEquals(2, allStats[0].sessionsCount)
+    assertEquals(0.5f, allStats[0].shareFraction, 0.001f)
+
+    val last7 = com.example.util.StudyStatsAggregator.filterByTime(
+      logs,
+      com.example.model.StatsTimeFilter.LAST_7_DAYS,
+      nowMillis = now
+    )
+    assertEquals(3, last7.size)
+
+    val weeklyTrend = com.example.util.StudyStatsAggregator.aggregateLast7Days(logs, nowMillis = now)
+    assertEquals(7, weeklyTrend.size)
+    assertEquals(120, weeklyTrend.sumOf { it.totalMinutes })
+  }
+
+  @Test
+  fun `ai quiz json parser extracts structured questions and option hints`() {
+    val sampleJson = """
+      {
+        "quizTitle": "الفيزياء: الحركة الدائرية",
+        "questions": [
+          {
+            "question": "جسم يتحرك بسرعة خطية ثابتة في مسار دائري، ما اتجاه عجلته المركزية؟",
+            "options": [
+              "باتجاه المماس",
+              "نحو مركز المسار الدائري",
+              "للخارج بعيداً عن المركز",
+              "عكس اتجاه السرعة"
+            ],
+            "correctIndex": 1,
+            "socraticHint": "تذكر كيف يتغير اتجاه متجه السرعة المماسية لحظياً أثناء الدوران.",
+            "optionHints": [
+              "التسارع المماسي يغيّر مقدار السرعة لا اتجاهها؛ راجع نوع الحركة هنا.",
+              "إجابة موفقة! التغير في اتجاه السرعة يتجه دائماً نحو المركز.",
+              "لو اتجه للخارج لابتعد الجسم عن المسار الدائري.",
+              "إذا كان عكس السرعة لتباطأ الجسم على خط مستقيم."
+            ],
+            "explanation": "العجلة المركزية تنشأ عن تغير اتجاه السرعة وتتجه دائماً نحو المركز.",
+            "teacherGuidance": "ارسم متجهي السرعة عند نقطتين قريبتين لتتضح لك جهة التغير."
+          }
+        ]
+      }
+    """.trimIndent()
+
+    val parsed = com.example.util.AiQuizJsonParser.parse(sampleJson, "اختبار الفيزياء")
+    assertEquals("الفيزياء: الحركة الدائرية", parsed.quizTitle)
+    assertEquals(1, parsed.questions.size)
+    val q = parsed.questions.first()
+    assertEquals(1, q.correctIndex)
+    assertEquals(4, q.options.size)
+    assertEquals(4, q.optionHints.size)
+    assertTrue(q.socraticHint.isNotBlank())
+  }
+
+  @Test
+  fun `guided quiz provides socratic feedback on wrong attempt before allowing retry to correct answer`() {
+    val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+    val vm = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(app)
+      .create(com.example.viewmodel.TutorViewModel::class.java)
+
+    val testQuestion = com.example.model.QuizQuestion(
+      id = "q_guided_1",
+      question = "ما وحدة قياس القوة في النظام الدولي؟",
+      options = listOf("الجول", "النيوتن", "الواط", "الباسكال"),
+      correctIndex = 1,
+      explanation = "النيوتن هو وحدة قياس القوة ويعادل كجم·م/ث².",
+      teacherGuidance = "تذكر قانون نيوتن الثاني: ق = ك × ت.",
+      socraticHint = "فكر في الكمية التي تساوي الكتلة مضروبة في العجلة.",
+      optionHints = listOf(
+        "الجول وحدة قياس الشغل والطاقة وليس القوة — ما الوحدة المنسوبة لمكتشف قوانين الحركة؟",
+        "أحسنت! النيوتن هو وحدة القوة.",
+        "الواط يقيس القدرة (الشغل على الزمن).",
+        "الباسكال يقيس الضغط (القوة على المساحة)."
+      )
+    )
+
+    vm.loadSubjectQuiz(listOf(testQuestion), "الفيزياء: الوحدات")
+    // First attempt: pick wrong option (index 0: الجول)
+    vm.selectQuizAnswer(0)
+    vm.submitQuizAnswer()
+
+    val afterWrong = vm.quizAttemptState.value
+    assertEquals(false, afterWrong.isSolvedOrRevealed)
+    assertTrue(afterWrong.attemptedWrongIndices.contains(0))
+    assertEquals(null, vm.selectedAnswerIndex.value)
+    assertTrue(afterWrong.activeGuidanceText.orEmpty().contains("الشغل والطاقة"))
+
+    // Cannot re-select already tried wrong option
+    vm.selectQuizAnswer(0)
+    assertEquals(null, vm.selectedAnswerIndex.value)
+
+    // Second attempt: select correct option (index 1: النيوتن)
+    vm.selectQuizAnswer(1)
+    vm.submitQuizAnswer()
+
+    val afterCorrect = vm.quizAttemptState.value
+    assertTrue(afterCorrect.isSolvedOrRevealed)
+    assertTrue(afterCorrect.isGuidanceCorrect)
+    assertEquals(0, afterCorrect.firstTryCorrectCount)
+    assertEquals(1, afterCorrect.guidedCorrectCount)
+
+    // Configurator validation for blank topic
+    vm.openAiQuizConfigurator("الكيمياء", "")
+    assertTrue(vm.isConfiguringAiQuiz.value)
+    vm.generateAiQuiz()
+    assertTrue(vm.quizGeneratorState.value is com.example.model.QuizGeneratorUiState.Error)
+  }
 }
 
 

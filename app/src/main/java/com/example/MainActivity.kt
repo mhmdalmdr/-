@@ -96,6 +96,7 @@ import com.example.ui.screens.PomodoroTimerScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.StudyNotesScreen
 import com.example.ui.screens.StudyScheduleScreen
+import com.example.ui.screens.StudyStatsScreen
 import com.example.ui.screens.SubjectDetailScreen
 import com.example.ui.screens.SubjectsGridScreen
 import com.example.ui.screens.TutorChatScreen
@@ -173,11 +174,13 @@ fun SudanCertApp(
     var isViewingNotes by remember { mutableStateOf(false) }
     var isViewingSettings by remember { mutableStateOf(false) }
     var isViewingPomodoro by remember { mutableStateOf(false) }
+    var isViewingStats by remember { mutableStateOf(false) }
     var selectedPdfTextbook by remember { mutableStateOf<Textbook?>(null) }
     val studyNotes by viewModel.studyNotes.collectAsStateWithLifecycle()
     val currentStudent by viewModel.currentStudent.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val pomodoroState by viewModel.pomodoroState.collectAsStateWithLifecycle()
+    val pomodoroSessions by viewModel.pomodoroSessions.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val fabGlowTransition = rememberInfiniteTransition(label = "fab_glow")
@@ -195,7 +198,7 @@ fun SudanCertApp(
         modifier = Modifier.fillMaxSize(),
         floatingActionButton = {
             // Prominent Floating Action Button (FAB) named 'المعلم الذكي' with SudX Obsidian & Champagne Gold glow
-            if (currentTab != NavigationTab.SMART_ASSISTANT && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro) {
+            if (currentTab != NavigationTab.SMART_ASSISTANT && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro && !isViewingStats) {
                 val fabShape = RoundedCornerShape(18.dp)
                 ExtendedFloatingActionButton(
                     onClick = {
@@ -206,6 +209,7 @@ fun SudanCertApp(
                         isViewingNotes = false
                         isViewingSettings = false
                         isViewingPomodoro = false
+                        isViewingStats = false
                         currentTab = NavigationTab.SMART_ASSISTANT
                     },
                     containerColor = SudXMidnightNavy,
@@ -292,7 +296,7 @@ fun SudanCertApp(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     NavigationTab.entries.forEach { tab ->
-                        val isSelected = currentTab == tab && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro
+                        val isSelected = currentTab == tab && selectedSubject == null && selectedPdfTextbook == null && !isViewingSchedule && !isViewingPractice && !isViewingNotes && !isViewingSettings && !isViewingPomodoro && !isViewingStats
                         val itemInteraction = remember { MutableInteractionSource() }
                         val isPressed by itemInteraction.collectIsPressedAsState()
                         val isHovered by itemInteraction.collectIsHoveredAsState()
@@ -369,6 +373,7 @@ fun SudanCertApp(
                                         isViewingNotes = false
                                         isViewingSettings = false
                                         isViewingPomodoro = false
+                                        isViewingStats = false
                                         currentTab = tab
                                     }
                                 )
@@ -487,6 +492,11 @@ fun SudanCertApp(
                     selectedSubject = null
                     isViewingPomodoro = true
                 },
+                onStartAiQuizForTopic = { subjectTitle, topicTitle ->
+                    viewModel.openAiQuizConfigurator(subjectTitle, topicTitle)
+                    selectedSubject = null
+                    isViewingPractice = true
+                },
                 modifier = screenModifier
             )
         } else if (isViewingPomodoro) {
@@ -497,6 +507,23 @@ fun SudanCertApp(
                     isViewingPomodoro = false
                     currentTab = NavigationTab.SMART_ASSISTANT
                     viewModel.sendMessage(prompt)
+                },
+                onOpenStats = {
+                    isViewingPomodoro = false
+                    isViewingStats = true
+                },
+                modifier = screenModifier
+            )
+        } else if (isViewingStats) {
+            StudyStatsScreen(
+                viewModel = viewModel,
+                onBack = { isViewingStats = false },
+                onOpenPomodoroForSubject = { subjectTitle ->
+                    if (!subjectTitle.isNullOrBlank()) {
+                        viewModel.setPomodoroSubject(subjectTitle)
+                    }
+                    isViewingStats = false
+                    isViewingPomodoro = true
                 },
                 modifier = screenModifier
             )
@@ -579,6 +606,14 @@ fun SudanCertApp(
                         onNavigateToPomodoro = {
                             isViewingPomodoro = true
                         },
+                        loggedStudyMinutes = pomodoroSessions.sumOf { it.durationMinutes },
+                        onNavigateToStats = {
+                            isViewingStats = true
+                        },
+                        onNavigateToAiQuiz = {
+                            viewModel.openAiQuizConfigurator()
+                            isViewingPractice = true
+                        },
                         studentAccount = currentStudent,
                         academicStreamTitle = settings.academicStream.titleAr,
                         onNavigateToSettings = {
@@ -627,6 +662,10 @@ fun SudanCertApp(
                         },
                         onOpenPdfTextbook = { book ->
                             selectedPdfTextbook = book
+                        },
+                        onOpenAiQuizGenerator = {
+                            viewModel.openAiQuizConfigurator()
+                            isViewingPractice = true
                         },
                         modifier = screenModifier
                     )

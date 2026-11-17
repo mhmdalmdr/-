@@ -49,7 +49,9 @@ data class QuizQuestion(
     val options: List<String>,
     val correctIndex: Int,
     val explanation: String,
-    val teacherGuidance: String
+    val teacherGuidance: String,
+    val socraticHint: String = "",
+    val optionHints: List<String> = emptyList()
 )
 
 data class GroundingSource(

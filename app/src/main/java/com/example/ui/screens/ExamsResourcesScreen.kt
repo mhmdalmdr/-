@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.FilterChip
@@ -81,6 +82,7 @@ fun ExamsResourcesScreen(
     onStartExamSimulation: (PastExam) -> Unit,
     onAskTeacherAboutExam: (String) -> Unit,
     onOpenPdfTextbook: (Textbook) -> Unit = {},
+    onOpenAiQuizGenerator: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
@@ -146,7 +148,8 @@ fun ExamsResourcesScreen(
         when (selectedTab) {
             0 -> PastExamsList(
                 onStartExamSimulation = onStartExamSimulation,
-                onAskTeacher = onAskTeacherAboutExam
+                onAskTeacher = onAskTeacherAboutExam,
+                onOpenAiQuizGenerator = onOpenAiQuizGenerator
             )
             1 -> TextbooksList(
                 onAskTeacher = onAskTeacherAboutExam,
@@ -162,7 +165,8 @@ fun ExamsResourcesScreen(
 @Composable
 fun PastExamsList(
     onStartExamSimulation: (PastExam) -> Unit,
-    onAskTeacher: (String) -> Unit
+    onAskTeacher: (String) -> Unit,
+    onOpenAiQuizGenerator: () -> Unit = {}
 ) {
     LazyColumn(
         modifier = Modifier
@@ -171,6 +175,65 @@ fun PastExamsList(
         contentPadding = PaddingValues(top = 16.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        item {
+            PremiumSurfaceCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("exams_ai_quiz_generator_card"),
+                containerColor = SudXMidnightNavy,
+                borderColor = SudXChampagneGold.copy(alpha = 0.7f),
+                cornerRadius = 20.dp,
+                elevation = 5.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = SudXChampagneGold,
+                            modifier = Modifier.size(26.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "مولّد الاختبارات التوجيهي بالذكاء الاصطناعي",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = SudXGoldTint
+                            )
+                            Text(
+                                text = "حدّد المادة والموضوع ليولّد لك الذكاء الاصطناعي اختباراً مع تلميحات تقودك للحل بنفسك",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFE2E8F0),
+                                lineHeight = 19.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    PremiumActionButton(
+                        onClick = onOpenAiQuizGenerator,
+                        containerColor = SudXChampagneGold,
+                        contentColor = SudXMidnightNavy,
+                        cornerRadius = 14.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("exams_open_ai_quiz_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "أنشئ اختبارك الذكي الآن",
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+        }
+
         item {
             PremiumSurfaceCard(
                 modifier = Modifier.fillMaxWidth(),
